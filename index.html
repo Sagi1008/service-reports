@@ -20,6 +20,11 @@
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+        /* iOS Safari: use actual available height, not the inflated 100vh */
+        html {
+            height: -webkit-fill-available;
+        }
+
         :root {
             --blue: #2563eb;
             --blue-dark: #1d4ed8;
@@ -46,12 +51,13 @@
             background: #eef2f7;
             direction: rtl;
             height: 100vh;
+            min-height: -webkit-fill-available;
             overflow: hidden;
             color: var(--slate-800);
         }
 
         /* ── Layout ──────────────────────────────────────────── */
-        .app { display: flex; height: 100vh; }
+        .app { display: flex; height: 100vh; min-height: -webkit-fill-available; }
 
         /* ── Sidebar ─────────────────────────────────────────── */
         .sidebar {
@@ -847,7 +853,15 @@
 
     .main { width: 100%; min-width: 0; }
 
-    .toolbar { padding: 0 10px; gap: 5px; min-height: 50px; flex-wrap: nowrap; }
+    .toolbar {
+        padding: env(safe-area-inset-top, 20px) 10px 0;
+        min-height: calc(50px + env(safe-area-inset-top, 20px));
+        gap: 5px;
+        flex-wrap: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
     .toolbar-title { font-size: 12.5px; min-width: 60px; }
     .toolbar-actions { gap: 3px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .toolbar-actions::-webkit-scrollbar { display: none; }
@@ -2828,6 +2842,43 @@ function closeMobileSidebar() {
     document.querySelector('.sidebar').classList.remove('mobile-open');
     document.getElementById('mobileSidebarOverlay').classList.remove('active');
 }
+
+/* ================================================================
+   IOS KEYBOARD / VIEWPORT FIX
+   When the software keyboard dismisses on iOS Safari the window can
+   remain scrolled to a non-zero position, pushing the toolbar off-
+   screen. We detect this via visualViewport resize events and via
+   focusout, then snap back to 0,0.
+================================================================ */
+(function iosKeyboardFix() {
+    function snapBack() {
+        // Tiny delay lets iOS finish its internal scroll animation first
+        setTimeout(function() {
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+        }, 80);
+    }
+
+    // Fires when the visual viewport resizes (keyboard open/close)
+    if (window.visualViewport) {
+        var lastH = window.visualViewport.height;
+        window.visualViewport.addEventListener('resize', function() {
+            var newH = window.visualViewport.height;
+            // Keyboard just closed (height grew back)
+            if (newH > lastH) { snapBack(); }
+            lastH = newH;
+        });
+    }
+
+    // Fallback: also snap on every input/textarea blur
+    document.addEventListener('focusout', function(e) {
+        var tag = e.target && e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+            snapBack();
+        }
+    }, true);
+})();
 
 /* ================================================================
    BOOT
