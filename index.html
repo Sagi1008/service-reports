@@ -2,8 +2,14 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Oficiency – מערכת דוחות טכנאי שטח</title>
+    <!-- PWA / standalone web app -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Oficiency">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a2640">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -225,11 +231,11 @@
         .toolbar {
             background: white;
             border-bottom: 1px solid var(--slate-200);
-            padding: 0 18px;
+            padding: env(safe-area-inset-top) 18px 0;
             display: flex;
             align-items: center;
             gap: 5px;
-            min-height: 54px;
+            min-height: calc(54px + env(safe-area-inset-top));
             flex-shrink: 0;
             flex-wrap: wrap;
         }
@@ -831,8 +837,13 @@
         transform: translateX(100%);
         transition: transform .25s ease;
         box-shadow: -4px 0 24px rgba(0,0,0,.25);
+        /* push sidebar content below status bar */
+        padding-top: env(safe-area-inset-top);
     }
     .sidebar.mobile-open { transform: translateX(0); }
+    /* home-indicator clearance */
+    .sidebar-footer { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+    .report-area    { padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
 
     .main { width: 100%; min-width: 0; }
 
