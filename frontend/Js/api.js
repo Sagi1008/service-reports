@@ -5,7 +5,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 import {
     initializeFirestore, persistentLocalCache, getFirestore,
     doc, setDoc, getDoc, collection, addDoc, getDocs, deleteDoc,
-    onSnapshot, serverTimestamp, query, where, updateDoc
+    onSnapshot, serverTimestamp, query, where, updateDoc, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
     getStorage, ref, uploadBytes, getDownloadURL, deleteObject, getBlob
@@ -644,6 +644,43 @@ export async function apiUpdateEquipment(id, updates) {
 
 export async function apiDeleteEquipment(id) {
     await deleteDoc(doc(db, "equipment", id));
+}
+
+export async function apiGetApprovedUsers() {
+    const q = query(
+        collection(db, 'registration_requests'),
+        where('status', '==', 'approved')
+    );
+    const snap = await getDocs(q);
+    const users = [];
+    snap.forEach(d => {
+        const data = d.data();
+        if (data.name && data.email) users.push({ id: d.id, name: data.name, email: data.email });
+    });
+    return users.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+
+export async function apiRevokeUserAccess(docId) {
+    await updateDoc(doc(db, 'registration_requests', docId), {
+        status:    'rejected',
+        revokedAt: serverTimestamp(),
+    });
+}
+
+export function apiSubscribeRecentHandoverLogs(n, cb) {
+    const q = query(
+        collection(db, 'equipment_logs'),
+        orderBy('timestamp', 'desc'),
+        limit(n)
+    );
+    return onSnapshot(q,
+        (snap) => {
+            const logs = [];
+            snap.forEach(d => logs.push({ id: d.id, ...d.data() }));
+            cb(logs);
+        },
+        (err) => { console.warn('[LOGS] handover logs listener:', err.message); cb([]); }
+    );
 }
 
 export async function apiLogEquipmentHandover(logData) {

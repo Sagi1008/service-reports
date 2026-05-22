@@ -1,4 +1,4 @@
-import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest, apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration, apiAddEquipment, apiUpdateEquipment, apiDeleteEquipment, apiLogEquipmentHandover } from './api.js';
+import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest, apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration, apiAddEquipment, apiUpdateEquipment, apiDeleteEquipment, apiLogEquipmentHandover, apiGetApprovedUsers, apiRevokeUserAccess, apiSubscribeRecentHandoverLogs } from './api.js';
 import {
     initPad, setTodayDates, markUnsaved,
     showModal, hideModal, toast,
@@ -30,11 +30,239 @@ import {
 } from './reports.js';
 
 /* ================================================================
-   ADMIN PANEL STATE
+   ADMIN PANEL STATE  (Sagi – registration approvals)
 ================================================================ */
 const ADMIN_EMAIL    = 'sagi.tisson@oficiency.com';
 let   _adminUnsub    = null;
 let   _pendingRequests = [];
+
+/* ================================================================
+   MANAGER PANEL STATE  (Maor – full operations dashboard)
+================================================================ */
+let _mgrPendingUnsub = null;
+let _mgrLogsUnsub    = null;
+let _mgrPending      = [];
+let _mgrTeam         = [];
+let _mgrLogs         = [];
+
+function _mgrEsc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _mgrFmtDate(iso) {
+    if (!iso) return '';
+    try {
+        return new Date(iso).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+    } catch { return iso; }
+}
+
+function _renderMgrPending() {
+    const el = document.getElementById('mgrPendingList');
+    if (!el) return;
+    if (!_mgrPending.length) {
+        el.innerHTML = '<div class="mgr-empty">אין בקשות הרשמה ממתינות</div>';
+        return;
+    }
+    el.innerHTML = _mgrPending.map(req => `
+        <div class="mgr-user-row" id="mgrpend-${_mgrEsc(req.id)}">
+            <div class="mgr-user-info">
+                <div class="mgr-user-name">${_mgrEsc(req.name)}</div>
+                <div class="mgr-user-email">${_mgrEsc(req.email)}</div>
+            </div>
+            <div class="mgr-row-actions">
+                <button class="mgr-btn mgr-btn-approve" onclick="mgrApprove('${_mgrEsc(req.id)}')">אשר</button>
+                <button class="mgr-btn mgr-btn-block"   onclick="mgrReject('${_mgrEsc(req.id)}')">חסום</button>
+            </div>
+        </div>`).join('');
+
+    const badge = document.getElementById('mgrPendingBadge');
+    if (badge) {
+        badge.textContent = _mgrPending.length;
+        badge.classList.toggle('hidden', _mgrPending.length === 0);
+    }
+}
+
+function _renderMgrTeam() {
+    const el = document.getElementById('mgrTeamList');
+    if (!el) return;
+    if (!_mgrTeam.length) {
+        el.innerHTML = '<div class="mgr-empty">אין חברי צוות מאושרים עדיין</div>';
+        return;
+    }
+    el.innerHTML = _mgrTeam.map(u => `
+        <div class="mgr-user-row" id="mgrteam-${_mgrEsc(u.id)}">
+            <div class="mgr-user-info">
+                <div class="mgr-user-name">${_mgrEsc(u.name)}</div>
+                <div class="mgr-user-email">${_mgrEsc(u.email)}</div>
+            </div>
+            <button class="mgr-btn mgr-btn-revoke" onclick="mgrRevoke('${_mgrEsc(u.id)}','${_mgrEsc(u.name)}')">בטל גישה</button>
+        </div>`).join('');
+}
+
+function _renderMgrLogs() {
+    const el = document.getElementById('mgrLogsList');
+    if (!el) return;
+    if (!_mgrLogs.length) {
+        el.innerHTML = '<div class="mgr-empty">אין לוגים עדיין</div>';
+        return;
+    }
+    el.innerHTML = _mgrLogs.map(log => {
+        const toolCount = (log.tools || []).length;
+        const toolLabel = toolCount === 1
+            ? _mgrEsc((log.tools[0] || {}).name || 'פריט')
+            : `${toolCount} פריטים`;
+        return `
+            <div class="mgr-log-row">
+                <div class="mgr-log-main">
+                    <span class="mgr-log-from">${_mgrEsc(log.senderName || '—')}</span>
+                    <span class="mgr-log-arrow">→</span>
+                    <span class="mgr-log-to">${_mgrEsc(log.recipientName || '—')}</span>
+                </div>
+                <div class="mgr-log-meta">
+                    <span class="mgr-log-tools">${toolLabel}</span>
+                    <span class="mgr-log-date">${_mgrFmtDate(log.timestamp)}</span>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function _buildManagerPanelHTML() {
+    return `
+        <div class="mgr-panel">
+            <div class="mgr-panel-header">
+                <svg class="mgr-lock-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <span class="mgr-panel-title">פאנל ניהול מערכת</span>
+                <span class="mgr-panel-badge">מנהל</span>
+            </div>
+
+            <!-- Section 1: Pending Registrations -->
+            <div class="mgr-section">
+                <div class="mgr-section-header">
+                    <span class="mgr-section-title">בקשות הרשמה</span>
+                    <span id="mgrPendingBadge" class="mgr-count-badge hidden">0</span>
+                </div>
+                <div id="mgrPendingList" class="mgr-list">
+                    <div class="mgr-empty">טוען...</div>
+                </div>
+            </div>
+
+            <!-- Section 2: Team Directory -->
+            <div class="mgr-section">
+                <div class="mgr-section-header">
+                    <span class="mgr-section-title">צוות פעיל</span>
+                    <button class="mgr-refresh-btn" onclick="mgrRefreshTeam()">רענן</button>
+                </div>
+                <div id="mgrTeamList" class="mgr-list">
+                    <div class="mgr-empty">טוען...</div>
+                </div>
+            </div>
+
+            <!-- Section 3: Handover Log Feed -->
+            <div class="mgr-section">
+                <div class="mgr-section-header">
+                    <span class="mgr-section-title">תנועות ציוד אחרונות</span>
+                </div>
+                <div id="mgrLogsList" class="mgr-list">
+                    <div class="mgr-empty">טוען...</div>
+                </div>
+            </div>
+        </div>`;
+}
+
+async function _setupManagerPanel() {
+    const panel = document.getElementById('managerAdminPanel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    panel.innerHTML = _buildManagerPanelHTML();
+
+    // Live pending registrations
+    _mgrPendingUnsub = apiSubscribePendingRegistrations((reqs) => {
+        _mgrPending = reqs;
+        _renderMgrPending();
+    });
+
+    // Live handover logs (last 10)
+    _mgrLogsUnsub = apiSubscribeRecentHandoverLogs(10, (logs) => {
+        _mgrLogs = logs;
+        _renderMgrLogs();
+    });
+
+    // One-time team fetch
+    await _mgrFetchTeam();
+}
+
+async function _mgrFetchTeam() {
+    try {
+        _mgrTeam = await apiGetApprovedUsers();
+        _renderMgrTeam();
+    } catch (e) {
+        const el = document.getElementById('mgrTeamList');
+        if (el) el.innerHTML = '<div class="mgr-empty">שגיאה בטעינת הצוות</div>';
+    }
+}
+
+function _cleanupManagerPanel() {
+    if (_mgrPendingUnsub) { _mgrPendingUnsub(); _mgrPendingUnsub = null; }
+    if (_mgrLogsUnsub)    { _mgrLogsUnsub();    _mgrLogsUnsub    = null; }
+    _mgrPending = [];
+    _mgrTeam    = [];
+    _mgrLogs    = [];
+}
+
+window.mgrApprove = async function(docId) {
+    const req = _mgrPending.find(r => r.id === docId);
+    if (!req) { toast('הבקשה כבר טופלה', 'error'); return; }
+    const row = document.getElementById(`mgrpend-${docId}`);
+    if (row) row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    try {
+        await apiApproveRegistration(docId, req.name, req.email, req.password);
+        toast(`${_mgrEsc(req.name)} אושר בהצלחה ✓`, 'success');
+        await _mgrFetchTeam();
+    } catch (e) {
+        console.error('[MGR APPROVE]', e);
+        toast('שגיאה באישור: ' + (e.message || ''), 'error');
+        if (row) row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
+};
+
+window.mgrReject = async function(docId) {
+    const row = document.getElementById(`mgrpend-${docId}`);
+    if (row) row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    try {
+        await apiRejectRegistration(docId);
+        toast('הבקשה נדחתה', 'success');
+    } catch (e) {
+        console.error('[MGR REJECT]', e);
+        toast('שגיאה בדחיית הבקשה', 'error');
+        if (row) row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
+};
+
+window.mgrRevoke = async function(docId, name) {
+    if (!confirm(`לבטל את גישת "${name}" למערכת?`)) return;
+    const row = document.getElementById(`mgrteam-${docId}`);
+    if (row) row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    try {
+        await apiRevokeUserAccess(docId);
+        toast(`גישת ${name} בוטלה`, 'success');
+        await _mgrFetchTeam();
+    } catch (e) {
+        console.error('[MGR REVOKE]', e);
+        toast('שגיאה בביטול הגישה', 'error');
+        if (row) row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
+};
+
+window.mgrRefreshTeam = async function() {
+    const btn = document.querySelector('.mgr-refresh-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    await _mgrFetchTeam();
+    if (btn) { btn.disabled = false; btn.textContent = 'רענן'; }
+};
 
 function _esc(s) {
     if (!s) return '';
@@ -323,29 +551,88 @@ async function _deleteEquipment(id) {
     }
 }
 
-window.showHandoverModal = function() {
-    const items = Object.values(S.equipment)
-        .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
-    document.getElementById('handoverHolder').value         = '';
-    document.getElementById('handoverRecipientEmail').value = '';
+let _handoverAllItems = [];
 
+function _renderHandoverList(filterText) {
+    const q = (filterText || '').trim().toLowerCase();
     const list = document.getElementById('handoverItemList');
-    if (!items.length) {
-        list.innerHTML = '<div class="handover-empty">אין פריטים במלאי</div>';
-    } else {
-        list.innerHTML = items.map(item => {
-            const sc = EQUIP_STATUS_CONFIG[item.status] || EQUIP_STATUS_CONFIG.storage;
-            return `
-                <label class="handover-row">
-                    <input type="checkbox" class="handover-check" data-id="${esc(item.id)}">
-                    <div class="handover-item-info">
-                        <span class="handover-item-name">${esc(item.name || 'ללא שם')}</span>
-                        ${item.serialNumber ? `<span class="handover-item-serial">S/N: ${esc(item.serialNumber)}</span>` : ''}
-                    </div>
-                    <span class="eq-badge ${sc.cls}">${sc.label}</span>
-                </label>`;
-        }).join('');
+    if (!list) return;
+    const filtered = q
+        ? _handoverAllItems.filter(item =>
+            (item.name || '').toLowerCase().includes(q) ||
+            (item.serialNumber || '').toLowerCase().includes(q))
+        : _handoverAllItems;
+    if (!filtered.length) {
+        list.innerHTML = '<div class="handover-empty">אין פריטים תואמים</div>';
+        return;
     }
+    list.innerHTML = filtered.map(item => {
+        const sc = EQUIP_STATUS_CONFIG[item.status] || EQUIP_STATUS_CONFIG.storage;
+        return `
+            <label class="handover-row">
+                <input type="checkbox" class="handover-check" data-id="${esc(item.id)}">
+                <div class="handover-item-info">
+                    <span class="handover-item-name">${esc(item.name || 'ללא שם')}</span>
+                    ${item.serialNumber ? `<span class="handover-item-serial">S/N: ${esc(item.serialNumber)}</span>` : ''}
+                </div>
+                <span class="eq-badge ${sc.cls}">${sc.label}</span>
+            </label>`;
+    }).join('');
+}
+
+window.filterHandoverItems = function(val) {
+    _renderHandoverList(val);
+};
+
+window.onHandoverTechSelect = function(sel) {
+    const val = sel.value;
+    const holderEl = document.getElementById('handoverHolder');
+    const emailEl  = document.getElementById('handoverRecipientEmail');
+    if (val) {
+        try {
+            const parsed = JSON.parse(val);
+            if (holderEl) holderEl.value = parsed.name  || '';
+            if (emailEl)  emailEl.value  = parsed.email || '';
+        } catch (_) {}
+    } else {
+        if (holderEl) holderEl.value = '';
+        if (emailEl)  emailEl.value  = '';
+    }
+};
+
+window.showHandoverModal = async function() {
+    _handoverAllItems = Object.values(S.equipment)
+        .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+
+    // Reset fields
+    const holderEl = document.getElementById('handoverHolder');
+    const emailEl  = document.getElementById('handoverRecipientEmail');
+    const searchEl = document.getElementById('handoverSearch');
+    const selEl    = document.getElementById('handoverTechSelect');
+    if (holderEl) holderEl.value = '';
+    if (emailEl)  emailEl.value  = '';
+    if (searchEl) searchEl.value = '';
+    if (selEl)    selEl.value    = '';
+
+    // Populate item list
+    _renderHandoverList('');
+
+    // Populate technician dropdown
+    if (selEl) {
+        selEl.innerHTML = '<option value="">בחר טכנאי מהרשימה...</option>';
+        try {
+            const users = await apiGetApprovedUsers();
+            users.forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = JSON.stringify({ name: u.name, email: u.email });
+                opt.textContent = `${u.name} — ${u.email}`;
+                selEl.appendChild(opt);
+            });
+        } catch (e) {
+            console.warn('[HANDOVER] could not load approved users:', e.message);
+        }
+    }
+
     showModal('handoverModal');
 };
 
@@ -357,9 +644,9 @@ function esc(s) {
 const MANAGER_EMAIL = 'maor.menachem@oficiency.com';
 
 window.confirmHandover = async function() {
-    const holder         = document.getElementById('handoverHolder').value.trim();
-    const recipientEmail = document.getElementById('handoverRecipientEmail').value.trim();
-    if (!holder) { toast('יש להזין שם טכנאי', 'error'); return; }
+    const holder         = (document.getElementById('handoverHolder')?.value || '').trim();
+    const recipientEmail = (document.getElementById('handoverRecipientEmail')?.value || '').trim();
+    if (!holder) { toast('יש לבחור או להזין שם טכנאי', 'error'); return; }
     const checked = Array.from(document.querySelectorAll('.handover-check:checked'));
     if (!checked.length) { toast('יש לבחור לפחות פריט אחד', 'error'); return; }
 
@@ -620,6 +907,9 @@ async function init() {
         if (nb) nb.style.display = 'none';
     }
     renderHomeDashboard();
+    if (S.currentUser?.email === MANAGER_EMAIL) {
+        _setupManagerPanel();
+    }
     subscribeToChanges(() => {
         renderSidebar();
         renderHomeDashboard();
@@ -683,6 +973,7 @@ onAuthStateChanged(auth, async (user) => {
         if (!_appBooted) { _appBooted = true; init(); }
     } else {
         if (_adminUnsub) { _adminUnsub(); _adminUnsub = null; }
+        _cleanupManagerPanel();
         if (_appBooted) {
             location.reload();
         } else {

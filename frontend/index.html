@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.2.4">
+    <link rel="stylesheet" href="style.css?v=1.3.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -127,6 +127,7 @@ window._showLoginWhenSplashDone = false;
 <!-- ══════════════════ TAB: HOME ═════════════════════════════ -->
 <div id="tabHome" class="mobile-tab-panel" aria-label="דף הבית">
     <div id="homeDashboard" class="home-dashboard"></div>
+    <div id="managerAdminPanel" class="hidden"></div>
 </div>
 
 <!-- ══════════════════ TAB: EQUIPMENT ════════════════════════ -->
@@ -160,7 +161,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.2.4</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.0</div>
     </div>
 </aside>
 
@@ -607,20 +608,27 @@ window._showLoginWhenSplashDone = false;
 <!-- ══════════════════ EQUIPMENT: HANDOVER MODAL ══════════ -->
 <div class="overlay hidden" id="handoverModal">
     <div class="modal modal-lg">
-        <h3>העברת ציוד</h3>
-        <p class="modal-sub">בחר פריטים להעברה ואת שם הטכנאי המקבל</p>
-        <div class="form-row">
+        <h3 class="handover-modal-title">העברת ציוד</h3>
+        <p class="modal-sub">בחר טכנאי מהרשימה ואת הפריטים להעברה</p>
+        <div class="fg" style="margin-bottom:10px">
+            <label class="lbl handover-lbl">טכנאי מאושר</label>
+            <select id="handoverTechSelect" class="handover-input" onchange="onHandoverTechSelect(this)">
+                <option value="">בחר טכנאי מהרשימה...</option>
+            </select>
+        </div>
+        <div class="form-row" style="margin-bottom:10px">
             <div class="fg">
-                <label class="lbl">מעביר לידי</label>
-                <input type="text" id="handoverHolder" placeholder='שם הטכנאי' />
+                <label class="lbl handover-lbl">שם הטכנאי</label>
+                <input type="text" id="handoverHolder" class="handover-input" placeholder="שם הטכנאי" />
             </div>
             <div class="fg">
-                <label class="lbl">אימייל הטכנאי (לעדכון)</label>
-                <input type="email" id="handoverRecipientEmail" placeholder='technician@example.com' />
+                <label class="lbl handover-lbl">אימייל הטכנאי</label>
+                <input type="email" id="handoverRecipientEmail" class="handover-input" placeholder="technician@example.com" />
             </div>
         </div>
-        <div class="fg" style="margin-top:4px">
-            <label class="lbl">פריטים להעברה</label>
+        <div class="fg">
+            <label class="lbl handover-lbl">פריטים להעברה</label>
+            <input type="search" id="handoverSearch" class="handover-search" placeholder="סנן פריטים..." oninput="filterHandoverItems(this.value)" />
             <div id="handoverItemList" class="handover-list"></div>
         </div>
         <div class="modal-actions">
@@ -686,7 +694,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.2.4"></script>
-<script type="module" src="Js/app.js?v=1.2.4"></script>
+<script type="module" src="Js/api.js?v=1.3.0"></script>
+<script type="module" src="Js/app.js?v=1.3.0"></script>
 </body>
 </html>

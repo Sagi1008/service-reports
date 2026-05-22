@@ -1107,7 +1107,7 @@ export function renderEquipmentTab() {
                 <h2 class="eq-title">ניהול ציוד</h2>
                 <div class="eq-topbar-actions">
                     <button class="eq-handover-btn" onclick="showHandoverModal()">העברת ציוד</button>
-                    <button class="eq-add-btn" onclick="showAddEquipmentModal()">+ הוסף</button>
+                    <button class="eq-add-btn" onclick="showAddEquipmentModal()">הוסף ציוד</button>
                 </div>
             </div>
 
