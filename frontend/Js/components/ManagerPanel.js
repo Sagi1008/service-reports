@@ -171,6 +171,8 @@ async function _fetchTeam() {
    PUBLIC API
 ================================================================ */
 export async function setupManagerPanel() {
+    if (_mgrPendingUnsub) return; // already initialised — prevent double listeners
+    console.log('[MGR PANEL] setting up manager panel');
     const panelHtml = _buildPanelHTML();
 
     for (const container of _getPanelContainers()) {

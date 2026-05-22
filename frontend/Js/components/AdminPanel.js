@@ -50,7 +50,10 @@ function _renderRegistrationRequests() {
    PUBLIC API
 ================================================================ */
 export function setupAdminPanel(userEmail) {
-    if ((userEmail?.toLowerCase().trim()) !== ADMIN_EMAIL) return;
+    const norm = userEmail?.toLowerCase().trim();
+    console.log('[ADMIN PANEL] checking:', norm, '| expected:', ADMIN_EMAIL, '| match:', norm === ADMIN_EMAIL);
+    if (norm !== ADMIN_EMAIL) return;
+    console.log('Master Admin Connected:', norm, '- Forcing Admin Panel Visibility.');
     const adminBtn = document.getElementById('adminPanelBtn');
     if (adminBtn) adminBtn.classList.remove('hidden');
     if (!_adminUnsub) {

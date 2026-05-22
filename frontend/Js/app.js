@@ -338,10 +338,6 @@ async function init() {
         if (nb) nb.style.display = 'none';
     }
     renderHomeDashboard();
-    const _email = S.currentUser?.email?.toLowerCase().trim();
-    if (_email === MANAGER_EMAIL || _email === MANAGER_EMAIL2) {
-        setupManagerPanel();
-    }
     subscribeToChanges(() => {
         renderSidebar();
         renderHomeDashboard();
@@ -385,7 +381,13 @@ onAuthStateChanged(auth, async (user) => {
         const mua = document.getElementById('mobileUserAvatar');
         if (mua) mua.textContent = (user.email?.[0] || '?').toUpperCase();
         document.getElementById('loginScreen').classList.add('hidden');
+        const _normalEmail = user.email?.toLowerCase().trim();
+        console.log('[AUTH] signed in:', _normalEmail);
         setupAdminPanel(user.email);
+        if (_normalEmail === MANAGER_EMAIL || _normalEmail === MANAGER_EMAIL2) {
+            console.log('Master Admin Connected:', _normalEmail, '- Forcing Admin Panel Visibility.');
+            setupManagerPanel();
+        }
         if (!_appBooted) { _appBooted = true; init(); }
     } else {
         cleanupAdminPanel();
