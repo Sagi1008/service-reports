@@ -52,7 +52,10 @@ function _renderRegistrationRequests() {
 export function setupAdminPanel(userEmail) {
     const norm = userEmail?.toLowerCase().trim();
     console.log('[ADMIN PANEL] checking:', norm, '| expected:', ADMIN_EMAIL, '| match:', norm === ADMIN_EMAIL);
-    if (norm !== ADMIN_EMAIL) return;
+    const isAdmin = norm === ADMIN_EMAIL
+        || userEmail === 'sagi.tisson@oficiency.com'
+        || userEmail === 'Sagi.tisson@oficiency.com';
+    if (!isAdmin) return;
     console.log('Master Admin Connected:', norm, '- Forcing Admin Panel Visibility.');
     const adminBtn = document.getElementById('adminPanelBtn');
     if (adminBtn) adminBtn.classList.remove('hidden');

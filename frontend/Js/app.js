@@ -384,8 +384,14 @@ onAuthStateChanged(auth, async (user) => {
         const _normalEmail = user.email?.toLowerCase().trim();
         console.log('[AUTH] signed in:', _normalEmail);
         setupAdminPanel(user.email);
-        if (_normalEmail === MANAGER_EMAIL || _normalEmail === MANAGER_EMAIL2) {
-            console.log('Master Admin Connected:', _normalEmail, '- Forcing Admin Panel Visibility.');
+        const _rawEmail = user.email;
+        const _isManager = _normalEmail === MANAGER_EMAIL
+            || _normalEmail === MANAGER_EMAIL2
+            || _rawEmail === 'sagi.tisson@oficiency.com'
+            || _rawEmail === 'Sagi.tisson@oficiency.com'
+            || _rawEmail === 'maor.menachem@oficiency.com';
+        if (_isManager) {
+            console.log('Master Admin Connected:', _rawEmail, '- Forcing Admin Panel Visibility.');
             setupManagerPanel();
         }
         if (!_appBooted) { _appBooted = true; init(); }
