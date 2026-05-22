@@ -3310,6 +3310,15 @@ select.handover-input {
     padding: 0 16px 24px;
 }
 
+#managerAdminPanelDesktop {
+    display: none; /* shown only on desktop via media query below */
+    padding: 12px 16px 0;
+    overflow-y: auto;
+    flex-shrink: 0;
+    max-height: 340px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
 .mgr-panel {
     background: linear-gradient(145deg, rgba(14,28,50,0.95) 0%, rgba(10,20,38,0.98) 100%);
     border: 1px solid rgba(37,99,235,0.22);
@@ -3543,4 +3552,10 @@ select.handover-input {
 
     /* FAB: shown when .fab-visible class is present */
     .mobile-fab.fab-visible { display: flex; }
+}
+
+/* Desktop: show manager panel in main area, hide mobile copy */
+@media (min-width: 769px) {
+    #managerAdminPanelDesktop { display: block; }
+    #managerAdminPanel { display: none !important; }
 }

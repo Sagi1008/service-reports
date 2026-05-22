@@ -3,6 +3,10 @@ import { toast } from '../ui.js';
 
 /* ================================================================
    MANAGER PANEL  (maor.menachem@oficiency.com only)
+   Renders into TWO containers:
+     #managerAdminPanel        – mobile (inside #tabHome)
+     #managerAdminPanelDesktop – desktop (inside main.main)
+   Both are populated via data-attributes so no duplicate IDs exist.
 ================================================================ */
 let _mgrPendingUnsub = null;
 let _mgrLogsUnsub    = null;
@@ -22,74 +26,90 @@ function _fmtDate(iso) {
     } catch { return iso; }
 }
 
-function _renderPending() {
-    const el = document.getElementById('mgrPendingList');
-    if (!el) return;
-    if (!_mgrPending.length) {
-        el.innerHTML = '<div class="mgr-empty">אין בקשות הרשמה ממתינות</div>';
-        return;
-    }
-    el.innerHTML = _mgrPending.map(req => `
-        <div class="mgr-user-row" id="mgrpend-${_esc(req.id)}">
-            <div class="mgr-user-info">
-                <div class="mgr-user-name">${_esc(req.name)}</div>
-                <div class="mgr-user-email">${_esc(req.email)}</div>
-            </div>
-            <div class="mgr-row-actions">
-                <button class="mgr-btn mgr-btn-approve" onclick="mgrApprove('${_esc(req.id)}')">אשר</button>
-                <button class="mgr-btn mgr-btn-block"   onclick="mgrReject('${_esc(req.id)}')">חסום</button>
-            </div>
-        </div>`).join('');
+function _getPanelContainers() {
+    return [
+        document.getElementById('managerAdminPanel'),
+        document.getElementById('managerAdminPanelDesktop'),
+    ].filter(Boolean);
+}
 
-    const badge = document.getElementById('mgrPendingBadge');
-    if (badge) {
-        badge.textContent = _mgrPending.length;
-        badge.classList.toggle('hidden', _mgrPending.length === 0);
+function _renderPending() {
+    for (const container of _getPanelContainers()) {
+        const el = container.querySelector('[data-mgr-list="pending"]');
+        if (!el) continue;
+
+        if (!_mgrPending.length) {
+            el.innerHTML = '<div class="mgr-empty">אין בקשות הרשמה ממתינות</div>';
+        } else {
+            el.innerHTML = _mgrPending.map(req => `
+                <div class="mgr-user-row" data-mgrpend="${_esc(req.id)}">
+                    <div class="mgr-user-info">
+                        <div class="mgr-user-name">${_esc(req.name)}</div>
+                        <div class="mgr-user-email">${_esc(req.email)}</div>
+                    </div>
+                    <div class="mgr-row-actions">
+                        <button class="mgr-btn mgr-btn-approve" onclick="mgrApprove('${_esc(req.id)}')">אשר</button>
+                        <button class="mgr-btn mgr-btn-block"   onclick="mgrReject('${_esc(req.id)}')">חסום</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        const badge = container.querySelector('[data-mgr-badge="pending"]');
+        if (badge) {
+            badge.textContent = _mgrPending.length;
+            badge.classList.toggle('hidden', _mgrPending.length === 0);
+        }
     }
 }
 
 function _renderTeam() {
-    const el = document.getElementById('mgrTeamList');
-    if (!el) return;
-    if (!_mgrTeam.length) {
-        el.innerHTML = '<div class="mgr-empty">אין חברי צוות מאושרים עדיין</div>';
-        return;
+    for (const container of _getPanelContainers()) {
+        const el = container.querySelector('[data-mgr-list="team"]');
+        if (!el) continue;
+
+        if (!_mgrTeam.length) {
+            el.innerHTML = '<div class="mgr-empty">אין חברי צוות מאושרים עדיין</div>';
+        } else {
+            el.innerHTML = _mgrTeam.map(u => `
+                <div class="mgr-user-row" data-mgrteam="${_esc(u.id)}">
+                    <div class="mgr-user-info">
+                        <div class="mgr-user-name">${_esc(u.name)}</div>
+                        <div class="mgr-user-email">${_esc(u.email)}</div>
+                    </div>
+                    <button class="mgr-btn mgr-btn-revoke" onclick="mgrRevoke('${_esc(u.id)}','${_esc(u.name)}')">בטל גישה</button>
+                </div>`).join('');
+        }
     }
-    el.innerHTML = _mgrTeam.map(u => `
-        <div class="mgr-user-row" id="mgrteam-${_esc(u.id)}">
-            <div class="mgr-user-info">
-                <div class="mgr-user-name">${_esc(u.name)}</div>
-                <div class="mgr-user-email">${_esc(u.email)}</div>
-            </div>
-            <button class="mgr-btn mgr-btn-revoke" onclick="mgrRevoke('${_esc(u.id)}','${_esc(u.name)}')">בטל גישה</button>
-        </div>`).join('');
 }
 
 function _renderLogs() {
-    const el = document.getElementById('mgrLogsList');
-    if (!el) return;
-    if (!_mgrLogs.length) {
-        el.innerHTML = '<div class="mgr-empty">אין לוגים עדיין</div>';
-        return;
+    for (const container of _getPanelContainers()) {
+        const el = container.querySelector('[data-mgr-list="logs"]');
+        if (!el) continue;
+
+        if (!_mgrLogs.length) {
+            el.innerHTML = '<div class="mgr-empty">אין לוגים עדיין</div>';
+        } else {
+            el.innerHTML = _mgrLogs.map(log => {
+                const toolCount = (log.tools || []).length;
+                const toolLabel = toolCount === 1
+                    ? _esc((log.tools[0] || {}).name || 'פריט')
+                    : `${toolCount} פריטים`;
+                return `
+                    <div class="mgr-log-row">
+                        <div class="mgr-log-main">
+                            <span class="mgr-log-from">${_esc(log.senderName || '—')}</span>
+                            <span class="mgr-log-arrow">→</span>
+                            <span class="mgr-log-to">${_esc(log.recipientName || '—')}</span>
+                        </div>
+                        <div class="mgr-log-meta">
+                            <span class="mgr-log-tools">${toolLabel}</span>
+                            <span class="mgr-log-date">${_fmtDate(log.timestamp)}</span>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
     }
-    el.innerHTML = _mgrLogs.map(log => {
-        const toolCount = (log.tools || []).length;
-        const toolLabel = toolCount === 1
-            ? _esc((log.tools[0] || {}).name || 'פריט')
-            : `${toolCount} פריטים`;
-        return `
-            <div class="mgr-log-row">
-                <div class="mgr-log-main">
-                    <span class="mgr-log-from">${_esc(log.senderName || '—')}</span>
-                    <span class="mgr-log-arrow">→</span>
-                    <span class="mgr-log-to">${_esc(log.recipientName || '—')}</span>
-                </div>
-                <div class="mgr-log-meta">
-                    <span class="mgr-log-tools">${toolLabel}</span>
-                    <span class="mgr-log-date">${_fmtDate(log.timestamp)}</span>
-                </div>
-            </div>`;
-    }).join('');
 }
 
 function _buildPanelHTML() {
@@ -107,9 +127,9 @@ function _buildPanelHTML() {
             <div class="mgr-section">
                 <div class="mgr-section-header">
                     <span class="mgr-section-title">בקשות הרשמה</span>
-                    <span id="mgrPendingBadge" class="mgr-count-badge hidden">0</span>
+                    <span data-mgr-badge="pending" class="mgr-count-badge hidden">0</span>
                 </div>
-                <div id="mgrPendingList" class="mgr-list">
+                <div data-mgr-list="pending" class="mgr-list">
                     <div class="mgr-empty">טוען...</div>
                 </div>
             </div>
@@ -119,7 +139,7 @@ function _buildPanelHTML() {
                     <span class="mgr-section-title">צוות פעיל</span>
                     <button class="mgr-refresh-btn" onclick="mgrRefreshTeam()">רענן</button>
                 </div>
-                <div id="mgrTeamList" class="mgr-list">
+                <div data-mgr-list="team" class="mgr-list">
                     <div class="mgr-empty">טוען...</div>
                 </div>
             </div>
@@ -128,7 +148,7 @@ function _buildPanelHTML() {
                 <div class="mgr-section-header">
                     <span class="mgr-section-title">תנועות ציוד אחרונות</span>
                 </div>
-                <div id="mgrLogsList" class="mgr-list">
+                <div data-mgr-list="logs" class="mgr-list">
                     <div class="mgr-empty">טוען...</div>
                 </div>
             </div>
@@ -140,8 +160,10 @@ async function _fetchTeam() {
         _mgrTeam = await apiGetApprovedUsers();
         _renderTeam();
     } catch (e) {
-        const el = document.getElementById('mgrTeamList');
-        if (el) el.innerHTML = '<div class="mgr-empty">שגיאה בטעינת הצוות</div>';
+        for (const container of _getPanelContainers()) {
+            const el = container.querySelector('[data-mgr-list="team"]');
+            if (el) el.innerHTML = '<div class="mgr-empty">שגיאה בטעינת הצוות</div>';
+        }
     }
 }
 
@@ -149,10 +171,12 @@ async function _fetchTeam() {
    PUBLIC API
 ================================================================ */
 export async function setupManagerPanel() {
-    const panel = document.getElementById('managerAdminPanel');
-    if (!panel) return;
-    panel.classList.remove('hidden');
-    panel.innerHTML = _buildPanelHTML();
+    const panelHtml = _buildPanelHTML();
+
+    for (const container of _getPanelContainers()) {
+        container.classList.remove('hidden');
+        container.innerHTML = panelHtml;
+    }
 
     _mgrPendingUnsub = apiSubscribePendingRegistrations((reqs) => {
         _mgrPending = reqs;
@@ -173,6 +197,10 @@ export function cleanupManagerPanel() {
     _mgrPending = [];
     _mgrTeam    = [];
     _mgrLogs    = [];
+    for (const container of _getPanelContainers()) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+    }
 }
 
 /* ================================================================
@@ -181,8 +209,9 @@ export function cleanupManagerPanel() {
 window.mgrApprove = async function(docId) {
     const req = _mgrPending.find(r => r.id === docId);
     if (!req) { toast('הבקשה כבר טופלה', 'error'); return; }
-    const row = document.getElementById(`mgrpend-${docId}`);
-    if (row) row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    document.querySelectorAll(`[data-mgrpend="${docId}"]`).forEach(row => {
+        row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    });
     try {
         await apiApproveRegistration(docId, req.name, req.email, req.password);
         toast(`${_esc(req.name)} אושר בהצלחה ✓`, 'success');
@@ -190,27 +219,33 @@ window.mgrApprove = async function(docId) {
     } catch (e) {
         console.error('[MGR APPROVE]', e);
         toast('שגיאה באישור: ' + (e.message || ''), 'error');
-        if (row) row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        document.querySelectorAll(`[data-mgrpend="${docId}"]`).forEach(row => {
+            row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        });
     }
 };
 
 window.mgrReject = async function(docId) {
-    const row = document.getElementById(`mgrpend-${docId}`);
-    if (row) row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    document.querySelectorAll(`[data-mgrpend="${docId}"]`).forEach(row => {
+        row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    });
     try {
         await apiRejectRegistration(docId);
         toast('הבקשה נדחתה', 'success');
     } catch (e) {
         console.error('[MGR REJECT]', e);
         toast('שגיאה בדחיית הבקשה', 'error');
-        if (row) row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        document.querySelectorAll(`[data-mgrpend="${docId}"]`).forEach(row => {
+            row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        });
     }
 };
 
 window.mgrRevoke = async function(docId, name) {
     if (!confirm(`לבטל את גישת "${name}" למערכת?`)) return;
-    const row = document.getElementById(`mgrteam-${docId}`);
-    if (row) row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    document.querySelectorAll(`[data-mgrteam="${docId}"]`).forEach(row => {
+        row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    });
     try {
         await apiRevokeUserAccess(docId);
         toast(`גישת ${name} בוטלה`, 'success');
@@ -218,13 +253,18 @@ window.mgrRevoke = async function(docId, name) {
     } catch (e) {
         console.error('[MGR REVOKE]', e);
         toast('שגיאה בביטול הגישה', 'error');
-        if (row) row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        document.querySelectorAll(`[data-mgrteam="${docId}"]`).forEach(row => {
+            row.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        });
     }
 };
 
 window.mgrRefreshTeam = async function() {
-    const btn = document.querySelector('.mgr-refresh-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    document.querySelectorAll('.mgr-refresh-btn').forEach(btn => {
+        btn.disabled = true; btn.textContent = '...';
+    });
     await _fetchTeam();
-    if (btn) { btn.disabled = false; btn.textContent = 'רענן'; }
+    document.querySelectorAll('.mgr-refresh-btn').forEach(btn => {
+        btn.disabled = false; btn.textContent = 'רענן';
+    });
 };
