@@ -2,7 +2,7 @@ import { apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegi
 import { toast } from '../ui.js';
 
 /* ================================================================
-   MANAGER PANEL  (maor.menachem@oficiency.com only)
+   MANAGER PANEL  (sagi.tisson@oficiency.com only)
    Renders into TWO containers:
      #managerAdminPanel        – mobile (inside #tabHome)
      #managerAdminPanelDesktop – desktop (inside main.main)

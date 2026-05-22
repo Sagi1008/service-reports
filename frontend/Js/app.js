@@ -31,7 +31,7 @@ import { renderEquipmentTab } from './components/EquipmentTab.js';
 import { setupManagerPanel, cleanupManagerPanel } from './components/ManagerPanel.js';
 import { ADMIN_EMAIL, setupAdminPanel, cleanupAdminPanel } from './components/AdminPanel.js';
 
-const MANAGER_EMAIL = 'maor.menachem@oficiency.com';
+const MANAGER_EMAIL = 'sagi.tisson@oficiency.com';
 
 /* ================================================================
    EXPOSE ALL FUNCTIONS GLOBALLY

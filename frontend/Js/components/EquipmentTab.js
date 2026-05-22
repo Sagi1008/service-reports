@@ -1,7 +1,7 @@
 import { S, esc, apiAddEquipment, apiUpdateEquipment, apiDeleteEquipment, apiLogEquipmentHandover, apiGetApprovedUsers } from '../api.js';
 import { showModal, hideModal, toast } from '../ui.js';
 
-const MANAGER_EMAIL = 'maor.menachem@oficiency.com';
+const MANAGER_EMAIL = 'sagi.tisson@oficiency.com';
 
 /* ================================================================
    EQUIPMENT STATUS CONFIG
