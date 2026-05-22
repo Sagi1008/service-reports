@@ -116,12 +116,9 @@ function _buildPanelHTML() {
     return `
         <div class="mgr-panel">
             <div class="mgr-panel-header">
-                <svg class="mgr-lock-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-                <span class="mgr-panel-title">פאנל ניהול מערכת</span>
-                <span class="mgr-panel-badge">מנהל</span>
+                <span class="mgr-panel-crown">👑</span>
+                <span class="mgr-panel-title">פאנל ניהול מערכת (שגיא)</span>
+                <span class="mgr-panel-badge">מנהל ראשי</span>
             </div>
 
             <div class="mgr-section">

@@ -3307,43 +3307,44 @@ select.handover-input {
    MANAGER ADMIN PANEL
 ================================================================ */
 #managerAdminPanel {
-    padding: 0 16px 24px;
+    padding: 12px 16px 20px;
 }
 
 #managerAdminPanelDesktop {
     display: none; /* shown only on desktop via media query below */
-    padding: 12px 16px 0;
+    padding: 12px 16px 12px;
     overflow-y: auto;
     flex-shrink: 0;
-    max-height: 340px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    max-height: 380px;
+    border-bottom: 2px solid rgba(59,130,246,0.35);
+    background: rgba(7,16,31,0.6);
 }
 
 .mgr-panel {
-    background: linear-gradient(145deg, rgba(14,28,50,0.95) 0%, rgba(10,20,38,0.98) 100%);
-    border: 1px solid rgba(37,99,235,0.22);
-    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(14,28,50,0.98) 0%, rgba(10,20,38,1) 100%);
+    border: 2px solid #3b82f6;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+    box-shadow: 0 0 0 4px rgba(59,130,246,0.12), 0 8px 40px rgba(0,0,0,0.5);
 }
 
 .mgr-panel-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 16px 18px 14px;
-    border-bottom: 1px solid rgba(37,99,235,0.15);
-    background: rgba(37,99,235,0.07);
+    gap: 10px;
+    padding: 18px 20px 16px;
+    border-bottom: 1px solid rgba(59,130,246,0.25);
+    background: rgba(37,99,235,0.12);
 }
-.mgr-lock-icon {
-    color: #3b82f6;
-    flex-shrink: 0;
+.mgr-panel-crown {
+    font-size: 22px;
+    line-height: 1;
 }
 .mgr-panel-title {
-    font-size: 15px;
-    font-weight: 800;
-    color: var(--ink);
-    letter-spacing: -0.2px;
+    font-size: 17px;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: -0.3px;
     flex: 1;
 }
 .mgr-panel-badge {
