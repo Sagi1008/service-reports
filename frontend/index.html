@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Oficiency – מערכת דו"חות שירות </title>
+    <!-- PWA / standalone web app -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Oficiency">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a2640">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1.2.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+</head>
+<body>
+
+<!-- ══════════════════ SPLASH SCREEN ════════════════════════ -->
+<div id="splashScreen" aria-hidden="true">
+    <div class="splash-logo">
+        <img src="assets/logo.png" alt="Oficiency Logo" class="company-logo">
+    </div>
+</div>
+<script>
+// Splash coordination — read by the app module after it loads
+window._splashDone = false;
+window._showLoginWhenSplashDone = false;
+
+(function () {
+    function dismissSplash() {
+        var el = document.getElementById('splashScreen');
+        if (el) {
+            el.classList.add('splash-out');
+            setTimeout(function () { el.style.display = 'none'; }, 650);
+        }
+        window._splashDone = true;
+        if (window._showLoginWhenSplashDone) {
+            var ls = document.getElementById('loginScreen');
+            if (ls) ls.classList.remove('hidden');
+        }
+    }
+    setTimeout(dismissSplash, 2500);
+})();
+</script>
+
+<!-- ══════════════════ LOGIN SCREEN ═════════════════════════ -->
+<div id="loginScreen" class="login-screen hidden">
+    <div class="login-bg-decoration" aria-hidden="true">
+        <div class="login-bg-orb"></div>
+        <div class="login-bg-streak"></div>
+    </div>
+    <div class="login-card">
+
+        <!-- Shared logo -->
+        <div class="login-logo-wrap">
+            <img src="assets/logo.png" alt="Oficiency Logo" class="company-logo">
+        </div>
+
+        <!-- ── LOGIN VIEW ────────────────────────────────────── -->
+        <div id="loginView">
+            <h2 class="login-title">מערכת ניהול ותחזוקה</h2>
+            <form onsubmit="doSignIn(); return false;" novalidate>
+                <input type="email" id="loginEmail" class="login-input"
+                       placeholder="כתובת דוא״ל" autocomplete="email" />
+                <div class="pw-wrap">
+                    <input type="password" id="loginPassword" class="login-input"
+                           placeholder="סיסמה" autocomplete="current-password" />
+                    <button class="pw-toggle" type="button"
+                            onclick="doTogglePassword('loginPassword', this)">הצג</button>
+                </div>
+                <div id="loginError" class="login-error"></div>
+                <button id="loginBtn" class="login-btn" type="submit">כניסה</button>
+            </form>
+            <button class="login-link" type="button"
+                    onclick="doShowRegister()">הרשמה למערכת</button>
+        </div>
+
+        <!-- ── REGISTER VIEW (hidden initially) ─────────────── -->
+        <div id="registerView" class="hidden">
+            <h2 class="login-title">בקשת הרשמה</h2>
+            <p class="login-sub">הבקשה תועבר לאישור מנהל</p>
+            <form onsubmit="doSubmitRegistration(); return false;" novalidate>
+                <input type="text"  id="regName"  class="login-input"
+                       placeholder="שם מלא" autocomplete="name" />
+                <input type="email" id="regEmail" class="login-input"
+                       placeholder="כתובת דוא״ל" autocomplete="email" />
+                <div class="pw-wrap">
+                    <input type="password" id="regPassword" class="login-input"
+                           placeholder="סיסמה רצויה" autocomplete="new-password" />
+                    <button class="pw-toggle" type="button"
+                            onclick="doTogglePassword('regPassword', this)">הצג</button>
+                </div>
+                <div id="registerError" class="login-error"></div>
+                <button id="registerBtn" class="login-btn" type="submit">שלח בקשה</button>
+            </form>
+            <button class="login-link" type="button"
+                    onclick="doHideRegister()">← חזור לכניסה</button>
+        </div>
+
+    </div>
+</div>
+
+<!-- ══════════════════ MOBILE TOP BAR ════════════════════════ -->
+<header class="mobile-topbar" id="mobileTopbar">
+    <img src="assets/logo.png" alt="Oficiency" class="company-logo mobile-topbar-logo">
+    <div class="mobile-topbar-user">
+        <button class="mobile-refresh-btn" onclick="this.classList.add('spinning');window.location.reload()" title="רענן">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+        </button>
+        <div class="mobile-user-avatar" id="mobileUserAvatar"></div>
+        <button class="mobile-signout-btn" onclick="doSignOut()">התנתק</button>
+    </div>
+</header>
+
+<!-- ══════════════════ TAB: HOME ═════════════════════════════ -->
+<div id="tabHome" class="mobile-tab-panel" aria-label="דף הבית">
+    <div id="homeDashboard" class="home-dashboard"></div>
+</div>
+
+<!-- ══════════════════ TAB: EQUIPMENT ════════════════════════ -->
+<div id="tabEquipment" class="mobile-tab-panel hidden" aria-label="ציוד">
+    <div class="equipment-placeholder-wrap">
+        <div class="equipment-placeholder-icon">🔧</div>
+        <h2 class="equipment-placeholder-title">ניהול ציוד</h2>
+        <p class="equipment-placeholder-badge">בקרוב</p>
+    </div>
+</div>
+
+<div class="app">
+
+<!-- Mobile sidebar overlay -->
+<div id="mobileSidebarOverlay" onclick="closeMobileSidebar()"></div>
+
+<!-- ══════════════════ SIDEBAR ════════════════════════════ -->
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-logo" id="sidebarLogo" onclick="showDashboard()">
+            <img src="assets/logo.png" alt="Oficiency Logo" class="company-logo">
+        </div>
+        <button class="btn-new-folder" onclick="showModal('createFolderModal')">📁 + תיקייה חדשה</button>
+    </div>
+
+    <div class="sidebar-body" id="sidebarBody"></div>
+
+    <div class="sidebar-footer">
+        <button class="btn-sb-primary" onclick="showNewReportModal()">+ דוח חדש</button>
+        <button class="btn-sb-secondary" onclick="showTemplateEditor(null)">📋 + תבנית חדשה</button>
+        <button class="btn-sb-secondary" onclick="showModal('importChoiceModal')">📂 ייבוא</button>
+        <button id="adminPanelBtn" class="btn-admin-panel hidden" onclick="showAdminPanel()">
+            👤 בקשות הרשמה
+            <span id="adminBadge" class="admin-badge hidden">0</span>
+        </button>
+        <div class="user-strip">
+            <span class="user-strip-email" id="userEmail"></span>
+            <button class="btn-signout" onclick="doSignOut()">יציאה</button>
+        </div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.7</div>
+    </div>
+</aside>
+
+<!-- ══════════════════ MAIN ═══════════════════════════════ -->
+<main class="main">
+
+    <div class="toolbar">
+        <button id="mobileMenuBtn" onclick="toggleMobileSidebar()" title="תפריט">☰</button>
+        <div class="toolbar-title" id="toolbarTitle">מערכת דו"חות שירות</div>
+        <div id="toolbarMode"></div>
+        <div class="toolbar-actions" id="toolbarActions"></div>
+    </div>
+
+    <div class="report-area" id="reportArea">
+
+        <div class="dashboard-view" id="dashboardView" style="display:none"></div>
+
+        <div class="empty-state" id="emptyState">
+            <div class="empty-state-icon">📋</div>
+            <h2>אין דוח פתוח</h2>
+            <p>בחר דוח מהרשימה, לחץ <strong>"+ דוח חדש"</strong>, או פתח תבנית</p>
+        </div>
+
+        <div class="report-editor" id="reportEditor" style="display:none">
+
+            <!-- Mobile back button -->
+            <button class="report-back-btn" onclick="goBackToDashboard()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><polyline points="9 18 15 12 9 6"/></svg>
+                חזור לדוחות
+            </button>
+
+            <!-- Details -->
+            <div class="card" id="cardDetails">
+                <div class="card-title">פרטי הדוח</div>
+                <div class="fg" style="margin-bottom:14px">
+                    <label class="lbl">סוג הטיפול</label>
+                    <div class="seg-picker" id="serviceTypePicker">
+                        <button type="button" class="seg-btn" data-val="routine" onclick="setServiceType('routine')">ביקור תקופתי</button>
+                        <button type="button" class="seg-btn" data-val="fault"   onclick="setServiceType('fault')">תקלה</button>
+                        <button type="button" class="seg-btn" data-val="extra"   onclick="setServiceType('extra')">טיפול נוסף</button>
+                        <button type="button" class="seg-btn" data-val="other"   onclick="setServiceType('other')">אחר</button>
+                    </div>
+                    <input type="hidden" id="fServiceType" value="">
+                </div>
+                <div class="form-row">
+                    <div class="fg">
+                        <label class="lbl">שם הדוח / סוג שירות</label>
+                        <input type="text" id="fTitle" placeholder='למשל: בדיקת הגזה' />
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">שם הלקוח / חברה</label>
+                        <input type="text" id="fCustomer" placeholder="שם הלקוח" />
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">אתר / מיקום</label>
+                        <input type="text" id="fSite" placeholder="שם האתר" />
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">תאריך הביקור</label>
+                        <input type="date" id="fVisitDate" />
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">מספר דוח</label>
+                        <input type="text" id="fNumber" placeholder="אופציונלי" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Permanent comments -->
+            <div class="card">
+                <div class="card-title">
+                    הערות קבועות
+                    <span class="card-badge">מופיעות בכל פתיחה</span>
+                </div>
+                <textarea id="fPermComments" placeholder="כתוב הערות קבועות שיופיעו תמיד בדוח זה..."></textarea>
+            </div>
+
+            <!-- Tasks -->
+            <div class="card">
+                <div class="card-title">
+                    רשימת משימות
+                    <span class="card-badge" id="taskCountBadge">0 משימות</span>
+                </div>
+                <div id="tasksList"></div>
+                <div class="task-add-row">
+                    <button class="btn-add-task" style="flex:1" onclick="addTask()">+ הוסף משימה</button>
+                    <button class="btn-add-section" onclick="addSectionTitle()">+ קטגוריה</button>
+                </div>
+            </div>
+
+            <!-- Appendices (shown in both modes) -->
+            <div class="card" id="cardAppendices" style="display:none;">
+                <div class="card-title">נספחים משלימים</div>
+                <div id="reportAppendicesList"></div>
+            </div>
+
+            <!-- Images (hidden in template mode) -->
+            <div class="card" id="cardImages">
+                <div class="card-title">תמונות מהשטח</div>
+                <div class="images-grid" id="imagesGrid"></div>
+                <label class="btn-add-image" for="imageInput">הוסף תמונות</label>
+                <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="handleImages(event)">
+            </div>
+
+            <!-- Final / closing comments (shown before technician) -->
+            <div class="card" id="cardFinalComments">
+                <div class="card-title">
+                    הערות סיום וסיכום
+                    <span class="card-badge">מופיע בתחתית ה-PDF</span>
+                </div>
+                <textarea id="fFinalComments" placeholder="סכם את הביקור, ממצאים מיוחדים, המלצות לפעולה..."></textarea>
+            </div>
+
+            <!-- Technician (hidden in template mode) -->
+            <div class="card" id="cardTech">
+                <div class="card-title">פרטי הטכנאי</div>
+                <div class="form-row">
+                    <div class="fg">
+                        <label class="lbl">שם הטכנאי</label>
+                        <input type="text" id="fTechName" placeholder="שם מלא" />
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">תאריך סיום ביקור</label>
+                        <input type="date" id="fCompDate" />
+                    </div>
+                </div>
+                <div class="fg" style="margin-top:11px">
+                    <label class="lbl">חתימת הטכנאי</label>
+                    <div class="sig-wrap"><canvas id="signatureCanvas"></canvas></div>
+                    <div class="sig-actions">
+                        <button class="btn-sig-clear" onclick="clearSignature()">נקה חתימה</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Signature (hidden in template mode) -->
+            <div class="card" id="cardCustomerSig">
+                <div class="card-title">חתימת לקוח</div>
+                <div class="fg">
+                    <label class="lbl">חתום בתיבה למטה באמצעות האצבע או העכבר</label>
+                    <div class="sig-wrap"><canvas id="customerSigCanvas"></canvas></div>
+                    <div class="sig-actions">
+                        <button class="btn-sig-clear" onclick="clearCustomerSignature()">נקה חתימה</button>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /report-editor -->
+    </div><!-- /report-area -->
+</main>
+</div>
+
+<!-- ══════════════════ MODALS ═════════════════════════════ -->
+
+<!-- New Report -->
+<div class="overlay hidden" id="newReportModal">
+    <div class="modal">
+        <h3>📄 דוח חדש</h3>
+        <div class="fg" style="margin-bottom:12px">
+            <label class="lbl">שם הדוח</label>
+            <input type="text" id="newReportName" placeholder='למשל:  תחזוקה חודשית – ינואר 2026' />
+        </div>
+        <div class="fg">
+            <label class="lbl">התחל מתבנית (אופציונלי)</label>
+            <div id="newReportTplList" style="max-height:180px;overflow-y:auto;margin-top:5px;"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-confirm" onclick="confirmNewReport()">צור דוח</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('newReportModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Create Folder -->
+<div class="overlay hidden" id="createFolderModal">
+    <div class="modal modal-sm">
+        <h3>📁 תיקייה חדשה</h3>
+        <div class="fg">
+            <label class="lbl">שם התיקייה</label>
+            <input type="text" id="newFolderName" placeholder='למשל: ברום ים המלח' />
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-confirm" onclick="createFolder()">צור</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('createFolderModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Rename Folder -->
+<div class="overlay hidden" id="renameFolderModal">
+    <div class="modal modal-sm">
+        <h3>✏️ שנה שם תיקייה</h3>
+        <div class="fg">
+            <label class="lbl">שם חדש</label>
+            <input type="text" id="renameFolderInput" />
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-confirm" onclick="confirmRenameFolder()">שמור</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('renameFolderModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Folder -->
+<div class="overlay hidden" id="deleteFolderModal">
+    <div class="modal modal-sm">
+        <h3>🗑️ מחיקת תיקייה</h3>
+        <p class="modal-sub" id="deleteFolderMsg"></p>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-danger" onclick="confirmDeleteFolder()">מחק</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('deleteFolderModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Move to Folder -->
+<div class="overlay hidden" id="moveFolderModal">
+    <div class="modal">
+        <h3>📁 העבר דוח לתיקייה</h3>
+        <p class="modal-sub">בחר תיקייה לשמירת הדוח הנוכחי</p>
+        <div id="folderOptList" style="max-height:240px;overflow-y:auto;"></div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-cancel" onclick="hideModal('moveFolderModal')">סגור</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Report -->
+<div class="overlay hidden" id="deleteModal">
+    <div class="modal modal-sm">
+        <h3>🗑️ מחיקת דוח</h3>
+        <p class="modal-sub">האם אתה בטוח שברצונך למחוק את הדוח? פעולה זו אינה הפיכה.</p>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-danger" onclick="confirmDelete()">מחק</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('deleteModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Share -->
+<div class="overlay hidden" id="shareModal">
+    <div class="modal modal-sm">
+        <h3>שיתוף דוח</h3>
+        <p class="modal-sub">הדוח יורד כ-PDF — יש לצרפו ידנית לאימייל</p>
+        <div class="share-grid">
+            <button class="share-btn share-gmail"   onclick="shareTo('gmail')">Gmail</button>
+            <button class="share-btn share-outlook" onclick="shareTo('outlook')">Outlook</button>
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-cancel" onclick="hideModal('shareModal')">סגור</button>
+        </div>
+    </div>
+</div>
+
+<!-- Template Editor -->
+<div class="overlay hidden" id="tplEditorModal">
+    <div class="modal modal-lg">
+        <h3 id="tplEditorTitle">📋 תבנית חדשה</h3>
+        <input type="hidden" id="tplEditorId" value="">
+        <input type="hidden" id="tplEditorFolder" value="">
+        <div class="fg" style="margin-bottom:11px">
+            <label class="lbl">שם התבנית</label>
+            <input type="text" id="tplName" placeholder='למשל: בדיקה חודשית תחנת הפחתה' />
+        </div>
+        <div class="fg" style="margin-bottom:11px">
+            <label class="lbl">סוג הטיפול (ברירת מחדל)</label>
+            <div class="seg-picker" id="tplServiceTypePicker">
+                <button type="button" class="seg-btn" data-val="routine" onclick="setTplServiceType('routine')">ביקור תקופתי</button>
+                <button type="button" class="seg-btn" data-val="fault"   onclick="setTplServiceType('fault')">תקלה</button>
+                <button type="button" class="seg-btn" data-val="extra"   onclick="setTplServiceType('extra')">טיפול נוסף</button>
+                <button type="button" class="seg-btn" data-val="other"   onclick="setTplServiceType('other')">אחר</button>
+            </div>
+            <input type="hidden" id="tplServiceType" value="">
+        </div>
+        <div class="fg" style="margin-bottom:11px">
+            <label class="lbl">הערות קבועות לתבנית</label>
+            <textarea id="tplPermComments" placeholder="הערות שיועתקו לכל דוח שייווצר מתבנית זו..." style="min-height:60px;"></textarea>
+        </div>
+        <div class="fg">
+            <label class="lbl">רשימת משימות</label>
+            <div id="tplTaskList" style="margin-top:6px;max-height:240px;overflow-y:auto;"></div>
+            <div class="task-add-row" style="margin-top:6px;">
+                <button class="btn-add-task" style="flex:1" onclick="addTplTask()">+ הוסף משימה לתבנית</button>
+                <button class="btn-add-section" onclick="addTplSection()">🏷️ +קטגוריה</button>
+            </div>
+        </div>
+        <div class="fg" style="margin-top:14px;">
+            <label class="lbl">📎 נספחים משלימים</label>
+            <div id="tplAppendicesList" style="margin-top:6px;"></div>
+            <input type="file" id="tplAppendixFileInput" style="display:none"
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt"
+                   onchange="handleTplAppendixFile(event)">
+            <button class="btn-add-appendix" onclick="document.getElementById('tplAppendixFileInput').click()">
+                📎 + צרף קובץ נספח
+            </button>
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-amber" onclick="saveTplEditor()">💾 שמור תבנית</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('tplEditorModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Preview -->
+<div class="overlay hidden" id="importPreviewModal">
+    <div class="modal">
+        <h3>📂 תצוגה מקדימה – ייבוא</h3>
+        <p class="modal-sub" id="importPreviewInfo"></p>
+        <div class="fg" style="margin-bottom:10px">
+            <label class="lbl">שם הדוח / התבנית</label>
+            <input type="text" id="importPreviewName" />
+        </div>
+        <label class="lbl">משימות שיובאו</label>
+        <div class="preview-list" id="importPreviewList"></div>
+        <div style="margin-top:12px;display:flex;gap:7px;">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;">
+                <input type="radio" name="importAs" value="report" checked> צור דוח
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;">
+                <input type="radio" name="importAs" value="template"> שמור כתבנית
+            </label>
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-confirm" onclick="confirmImport()">ייבא</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('importPreviewModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Save as Template (name only) -->
+<div class="overlay hidden" id="saveTplModal">
+    <div class="modal modal-sm">
+        <h3>📋 שמור כתבנית</h3>
+        <p class="modal-sub">המשימות וההערות הקבועות של הדוח הנוכחי יישמרו כתבנית לשימוש עתידי.</p>
+        <div class="fg">
+            <label class="lbl">שם התבנית</label>
+            <input type="text" id="saveTplName" placeholder='למשל: בדיקה חודשית גנרטורים' />
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-amber" onclick="confirmSaveAsTemplate()">💾 שמור תבנית</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('saveTplModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import type choice -->
+<div class="overlay hidden" id="importChoiceModal">
+    <div class="modal modal-sm">
+        <h3>📂 ייבוא קובץ</h3>
+        <p class="modal-sub">בחר את סוג הקובץ לייבוא</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+            <button class="mbtn mbtn-confirm"
+                    onclick="document.getElementById('importInput').click();hideModal('importChoiceModal')">
+                📋 רשימת בדיקה (JSON / Excel / Word)
+            </button>
+            <button class="mbtn mbtn-amber"
+                    onclick="hideModal('importChoiceModal');openImportAssociationModal()">
+                📄 מסמך (PDF / תמונה)
+            </button>
+        </div>
+        <div class="modal-actions" style="margin-top:14px;">
+            <button class="mbtn mbtn-cancel" onclick="hideModal('importChoiceModal')">ביטול</button>
+        </div>
+        <!-- Hidden file input for checklists -->
+        <input type="file" id="importInput" accept=".json,.xlsx,.xls,.docx,.doc" style="display:none" onchange="importFile(event)">
+    </div>
+</div>
+
+<!-- Document upload + template association -->
+<div class="overlay hidden" id="importAssociationModal">
+    <div class="modal modal-sm">
+        <h3>📄 העלאת מסמך</h3>
+        <p class="modal-sub">העלאה לתיקייה: <strong id="docTargetFolder">—</strong></p>
+        <div class="fg" style="margin-bottom:14px;">
+            <label class="lbl">קובץ (PDF / תמונה)</label>
+            <div id="docFilePreview" class="doc-file-preview">לא נבחר קובץ</div>
+            <input type="file" id="documentInput" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.tiff"
+                   style="display:none" onchange="onDocumentFilePicked(event)">
+            <button class="mbtn mbtn-cancel" style="margin-top:6px;"
+                    onclick="document.getElementById('documentInput').click()">📂 בחר קובץ...</button>
+        </div>
+        <div class="modal-actions">
+            <button id="docUploadBtn" class="mbtn mbtn-confirm" onclick="confirmDocumentUpload()" disabled>⬆️ העלה</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('importAssociationModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════ ADMIN PANEL MODAL ═════════════════ -->
+<div class="overlay hidden" id="adminPanelModal">
+    <div class="modal modal-lg">
+        <h3>👤 בקשות הרשמה ממתינות</h3>
+        <div id="adminRequestsList">
+            <div class="reg-requests-empty">טוען...</div>
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-cancel" onclick="hideModal('adminPanelModal')">סגור</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════ TOAST / LOADING / LIGHTBOX ════════ -->
+<div class="toast"   id="toast"></div>
+<div class="loading hidden" id="loadingOverlay">
+    <div style="text-align:center">
+        <div class="spinner"></div>
+        <p id="loadingMsg" style="margin-top:12px;color:var(--slate-500);font-size:13px">טוען...</p>
+    </div>
+</div>
+<div class="lightbox hidden" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-x">✕</button>
+    <img id="lightboxImg" src="" alt="">
+</div>
+
+<!-- ══════════════════ MOBILE FAB ════════════════════════════ -->
+<button class="mobile-fab" id="mobileFab" onclick="showNewReportModal()" aria-label="דוח חדש">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+</button>
+
+<!-- ══════════════════ BOTTOM NAVIGATION ═════════════════════ -->
+<nav class="bottom-nav" id="bottomNav" aria-label="ניווט ראשי">
+    <button class="bnav-item" data-tab="home" id="bnavHome" onclick="switchTab('home')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        <span>דף הבית</span>
+    </button>
+    <button class="bnav-item" data-tab="reports" id="bnavReports" onclick="switchTab('reports')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <span>דו"חות</span>
+    </button>
+    <button class="bnav-item" data-tab="equipment" id="bnavEquipment" onclick="switchTab('equipment')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+        <span>ציוד</span>
+    </button>
+</nav>
+
+<script type="module" src="Js/api.js?v=1.2.0"></script>
+<script type="module" src="Js/app.js?v=1.2.0"></script>
+</body>
+</html>
