@@ -1066,6 +1066,116 @@ export function renderSidebar() {
 export function toggleFolder(hdr) { hdr.parentElement.classList.toggle('open'); }
 
 /* ================================================================
+   EQUIPMENT TAB
+================================================================ */
+export const EQUIP_STATUS_CONFIG = {
+    storage: { label: 'פנוי במחסן', cls: 'eq-badge-storage' },
+    active:  { label: 'בשימוש',     cls: 'eq-badge-active'  },
+    repair:  { label: 'בתיקון',     cls: 'eq-badge-repair'  },
+};
+
+const _EQUIP_CATEGORIES = [
+    'כלי עבודה ידניים',
+    'ציוד לחץ וצנרת',
+    'מכשירי בדיקה ומדידה',
+    'חומרים וחוסרים',
+    'ציוד בטיחות',
+    'כלי עבודה חשמליים',
+    'ציוד כללי',
+];
+
+export function renderEquipmentTab() {
+    const el = document.getElementById('tabEquipment');
+    if (!el) return;
+
+    const items = Object.values(S.equipment);
+    const totalItems  = items.length;
+    const activeItems = items.filter(i => i.status === 'active').length;
+    const repairItems = items.filter(i => i.status === 'repair').length;
+
+    // Group by category
+    const byCategory = {};
+    items.forEach(item => {
+        const cat = item.category || 'אחר';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(item);
+    });
+
+    let html = `
+        <div class="eq-wrap">
+            <div class="eq-topbar">
+                <h2 class="eq-title">ניהול ציוד</h2>
+                <div class="eq-topbar-actions">
+                    <button class="eq-handover-btn" onclick="showHandoverModal()">העברת ציוד</button>
+                    <button class="eq-add-btn" onclick="showAddEquipmentModal()">+ הוסף</button>
+                </div>
+            </div>
+
+            <div class="eq-search-wrap">
+                <input type="search" class="eq-search" id="equipSearch"
+                       placeholder="חפש ציוד לפי שם / מספר סידורי..."
+                       oninput="filterEquipment(this.value)">
+            </div>
+
+            <div class="eq-summary-row">
+                <div class="eq-summary-chip eq-sum-total">
+                    <span class="eq-sum-num">${totalItems}</span>
+                    <span class="eq-sum-lbl">פריטים</span>
+                </div>
+                <div class="eq-summary-chip eq-sum-active">
+                    <span class="eq-sum-num">${activeItems}</span>
+                    <span class="eq-sum-lbl">בשימוש</span>
+                </div>
+                <div class="eq-summary-chip eq-sum-repair">
+                    <span class="eq-sum-num">${repairItems}</span>
+                    <span class="eq-sum-lbl">בתיקון</span>
+                </div>
+            </div>`;
+
+    if (!totalItems) {
+        html += `
+            <div class="eq-empty">
+                <div class="eq-empty-icon">🔧</div>
+                <p>אין פריטי ציוד במערכת.<br>לחץ <strong>+ הוסף</strong> להוספה.</p>
+            </div>`;
+    } else {
+        const orderedCats = _EQUIP_CATEGORIES.filter(c => byCategory[c]);
+        const extraCats   = Object.keys(byCategory).filter(c => !_EQUIP_CATEGORIES.includes(c));
+        const allCats     = [...orderedCats, ...extraCats];
+
+        allCats.forEach(cat => {
+            const catItems = byCategory[cat].slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+            html += `
+                <div class="eq-category-section">
+                    <div class="eq-category-label">${esc(cat)}</div>
+                    <div class="eq-grid">
+                        ${catItems.map(_buildEquipCard).join('')}
+                    </div>
+                </div>`;
+        });
+    }
+
+    html += `</div>`;
+    el.innerHTML = html;
+}
+
+function _buildEquipCard(item) {
+    const sc    = EQUIP_STATUS_CONFIG[item.status] || EQUIP_STATUS_CONFIG.storage;
+    const safeId = esc(item.id);
+    return `
+        <div class="eq-card" onclick="showEquipmentDetail('${safeId}')">
+            <div class="eq-card-header">
+                <div class="eq-card-name">${esc(item.name || 'ללא שם')}</div>
+                <span class="eq-badge ${sc.cls}">${sc.label}</span>
+            </div>
+            ${item.model        ? `<div class="eq-card-model">${esc(item.model)}</div>` : ''}
+            ${item.serialNumber ? `<div class="eq-card-serial">S/N: ${esc(item.serialNumber)}</div>` : ''}
+            ${item.status === 'active' && item.currentHolder
+                ? `<div class="eq-card-holder">אצל: ${esc(item.currentHolder)}</div>` : ''}
+        </div>`;
+}
+
+/* ================================================================
    TOOLBAR
 ================================================================ */
 export function updateToolbar() {

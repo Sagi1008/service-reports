@@ -1,4 +1,4 @@
-import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest, apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration } from './api.js';
+import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest, apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration, apiAddEquipment, apiUpdateEquipment, apiDeleteEquipment, apiLogEquipmentHandover } from './api.js';
 import {
     initPad, setTodayDates, markUnsaved,
     showModal, hideModal, toast,
@@ -14,6 +14,7 @@ import {
     uploadProcedure, deleteProcedure,
     renderHomeDashboard,
     initSortable, renderSidebar,
+    renderEquipmentTab, EQUIP_STATUS_CONFIG,
 } from './ui.js';
 import {
     preloadLogo,
@@ -214,6 +215,209 @@ window.setTplServiceType = function(val) {
 };
 
 /* ================================================================
+   EQUIPMENT MANAGEMENT
+================================================================ */
+function _equipToggleHolder() {
+    const status = document.getElementById('equipStatus').value;
+    document.getElementById('equipHolderFg').style.display = status === 'active' ? '' : 'none';
+}
+
+window.onEquipStatusChange = _equipToggleHolder;
+
+window.filterEquipment = function(query) {
+    const q = (query || '').trim().toLowerCase();
+    document.querySelectorAll('.eq-card').forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+    document.querySelectorAll('.eq-category-section').forEach(section => {
+        const anyVisible = Array.from(section.querySelectorAll('.eq-card'))
+            .some(c => c.style.display !== 'none');
+        section.style.display = anyVisible ? '' : 'none';
+    });
+};
+
+window.showAddEquipmentModal = function() {
+    document.getElementById('equipFormTitle').textContent = 'הוסף ציוד חדש';
+    document.getElementById('equipFormId').value     = '';
+    document.getElementById('equipName').value       = '';
+    document.getElementById('equipModel').value      = '';
+    document.getElementById('equipSerial').value     = '';
+    document.getElementById('equipCategory').value   = 'כלי עבודה ידניים';
+    document.getElementById('equipStatus').value     = 'storage';
+    document.getElementById('equipHolder').value     = '';
+    document.getElementById('equipNotes').value      = '';
+    document.getElementById('equipDeleteBtn').style.display = 'none';
+    _equipToggleHolder();
+    showModal('equipFormModal');
+};
+
+window.showEquipmentDetail = function(id) {
+    const item = S.equipment[id];
+    if (!item) return;
+    document.getElementById('equipFormTitle').textContent = 'ערוך כלי';
+    document.getElementById('equipFormId').value     = id;
+    document.getElementById('equipName').value       = item.name       || '';
+    document.getElementById('equipModel').value      = item.model      || '';
+    document.getElementById('equipSerial').value     = item.serialNumber || '';
+    document.getElementById('equipCategory').value   = item.category   || 'כלי עבודה ידניים';
+    document.getElementById('equipStatus').value     = item.status     || 'storage';
+    document.getElementById('equipHolder').value     = item.currentHolder || '';
+    document.getElementById('equipNotes').value      = item.notes      || '';
+    document.getElementById('equipDeleteBtn').style.display = '';
+    _equipToggleHolder();
+    showModal('equipFormModal');
+};
+
+window.saveEquipment = async function() {
+    const id     = document.getElementById('equipFormId').value;
+    const name   = document.getElementById('equipName').value.trim();
+    if (!name) { toast('יש להזין שם לפריט', 'error'); return; }
+
+    const status = document.getElementById('equipStatus').value;
+    const data = {
+        name,
+        model:         document.getElementById('equipModel').value.trim(),
+        serialNumber:  document.getElementById('equipSerial').value.trim(),
+        category:      document.getElementById('equipCategory').value,
+        status,
+        currentHolder: status === 'active' ? document.getElementById('equipHolder').value.trim() : '',
+        notes:         document.getElementById('equipNotes').value.trim(),
+    };
+
+    try {
+        if (id) {
+            await apiUpdateEquipment(id, data);
+            S.equipment[id] = { ...S.equipment[id], ...data };
+            toast('הציוד עודכן ✓', 'success');
+        } else {
+            const item = await apiAddEquipment(data);
+            S.equipment[item.id] = item;
+            toast('הציוד נוסף ✓', 'success');
+        }
+        hideModal('equipFormModal');
+        renderEquipmentTab();
+    } catch (e) {
+        console.error('[EQUIP] save error:', e);
+        toast('שגיאה בשמירה', 'error');
+    }
+};
+
+window.deleteEquipmentPrompt = function() {
+    const id   = document.getElementById('equipFormId').value;
+    const name = document.getElementById('equipName').value || 'פריט זה';
+    if (!confirm(`למחוק את "${name}" מהמלאי?`)) return;
+    _deleteEquipment(id);
+};
+
+async function _deleteEquipment(id) {
+    try {
+        await apiDeleteEquipment(id);
+        delete S.equipment[id];
+        hideModal('equipFormModal');
+        toast('הפריט נמחק', 'error');
+        renderEquipmentTab();
+    } catch (e) {
+        console.error('[EQUIP] delete error:', e);
+        toast('שגיאה במחיקה', 'error');
+    }
+}
+
+window.showHandoverModal = function() {
+    const items = Object.values(S.equipment)
+        .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+    document.getElementById('handoverHolder').value         = '';
+    document.getElementById('handoverRecipientEmail').value = '';
+
+    const list = document.getElementById('handoverItemList');
+    if (!items.length) {
+        list.innerHTML = '<div class="handover-empty">אין פריטים במלאי</div>';
+    } else {
+        list.innerHTML = items.map(item => {
+            const sc = EQUIP_STATUS_CONFIG[item.status] || EQUIP_STATUS_CONFIG.storage;
+            return `
+                <label class="handover-row">
+                    <input type="checkbox" class="handover-check" data-id="${esc(item.id)}">
+                    <div class="handover-item-info">
+                        <span class="handover-item-name">${esc(item.name || 'ללא שם')}</span>
+                        ${item.serialNumber ? `<span class="handover-item-serial">S/N: ${esc(item.serialNumber)}</span>` : ''}
+                    </div>
+                    <span class="eq-badge ${sc.cls}">${sc.label}</span>
+                </label>`;
+        }).join('');
+    }
+    showModal('handoverModal');
+};
+
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+const MANAGER_EMAIL = 'maor.menachem@oficiency.com';
+
+window.confirmHandover = async function() {
+    const holder         = document.getElementById('handoverHolder').value.trim();
+    const recipientEmail = document.getElementById('handoverRecipientEmail').value.trim();
+    if (!holder) { toast('יש להזין שם טכנאי', 'error'); return; }
+    const checked = Array.from(document.querySelectorAll('.handover-check:checked'));
+    if (!checked.length) { toast('יש לבחור לפחות פריט אחד', 'error'); return; }
+
+    // Snapshot tool details before modifying state
+    const tools = checked.map(cb => {
+        const item = S.equipment[cb.dataset.id] || {};
+        return { id: cb.dataset.id, name: item.name || 'ציוד', serialNumber: item.serialNumber || '' };
+    });
+
+    try {
+        // 1. Batch-update equipment status
+        await Promise.all(checked.map(cb => {
+            const id     = cb.dataset.id;
+            const update = { status: 'active', currentHolder: holder };
+            S.equipment[id] = { ...S.equipment[id], ...update };
+            return apiUpdateEquipment(id, update);
+        }));
+
+        // 2. Write log to equipment_logs
+        const senderName = S.currentUser?.displayName || S.currentUser?.email || 'מנהל המערכת';
+        await apiLogEquipmentHandover({ senderName, recipientName: holder, recipientEmail, tools });
+
+        // 3. Build pre-filled mailto: link
+        const now = new Date().toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+        const toolLines = tools.map(t =>
+            `• ${t.name}${t.serialNumber ? ' - S/N: ' + t.serialNumber : ''}`
+        ).join('\n');
+        const bodyText = [
+            'שלום,',
+            '',
+            'להלן פרטי תנועת ציוד שבוצעה במערכת Oficiency:',
+            '',
+            `מוסר: ${senderName}`,
+            `מקבל: ${holder}`,
+            `תאריך ושעה: ${now}`,
+            '',
+            'ציוד שהועבר:',
+            toolLines,
+            '',
+            '---',
+            'Oficiency | מערכת ניהול ותחזוקה',
+        ].join('\n');
+
+        const toField = [recipientEmail, MANAGER_EMAIL].filter(Boolean).join(',');
+        const mailUrl = `mailto:${toField}?subject=${encodeURIComponent('עדכון תנועת ציוד במערכת - Oficiency')}&body=${encodeURIComponent(bodyText)}`;
+        window.open(mailUrl, '_blank');
+
+        // 4. Close + notify
+        hideModal('handoverModal');
+        toast(`${tools.length} פריטים הועברו ל-${holder} — הלוג נשמר ✓`, 'success');
+        renderEquipmentTab();
+    } catch (e) {
+        console.error('[HANDOVER] error:', e);
+        toast('שגיאה בהעברה — נסה שוב', 'error');
+    }
+};
+
+/* ================================================================
    BOTTOM NAV — MOBILE TAB SWITCHING
 ================================================================ */
 function _isMobile() { return window.innerWidth <= 768; }
@@ -238,7 +442,8 @@ function switchTab(tab) {
     if (fab) fab.classList.toggle('fab-visible', tab === 'reports');
 
     // When switching to reports, ensure dashboard/folder content is rendered
-    if (tab === 'home') renderHomeDashboard();
+    if (tab === 'home')      renderHomeDashboard();
+    if (tab === 'equipment') renderEquipmentTab();
     if (tab === 'reports' && !S.currentId) {
         if (S.currentFolder) showFolderContent(S.currentFolder);
         else                  showDashboard();
@@ -418,6 +623,8 @@ async function init() {
     subscribeToChanges(() => {
         renderSidebar();
         renderHomeDashboard();
+        const equipEl = document.getElementById('tabEquipment');
+        if (equipEl && !equipEl.classList.contains('hidden')) renderEquipmentTab();
         if (!S.currentId) {
             if (S.currentFolder) showFolderContent(S.currentFolder);
             else                 showDashboard();

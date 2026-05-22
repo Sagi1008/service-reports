@@ -50,6 +50,7 @@ export const S = {
     templates: {},       // { id: { id, name, permComments, tasks:[{desc,comments}] } }
     attachments: {},     // { folderName: [attachment, ...] } — folder-level documents
     procedures: {},      // { folderName: [procedure, ...] } — site procedures/guidelines
+    equipment:   {},       // { id: { id, name, model, serialNumber, category, status, currentHolder, notes, updatedAt } }
     currentId:      null,
     currentFolder:  null,   // folder currently shown in the main view
     currentMode:    'report',   // 'report' | 'template'
@@ -241,11 +242,11 @@ export async function hydrate() {
     _unsubscribers.forEach(u => { try { u(); } catch {} });
     _unsubscribers = [];
 
-    const ready = { appstate: false, reports: false, attachments: false, procedures: false };
+    const ready = { appstate: false, reports: false, attachments: false, procedures: false, equipment: false };
     let resolveReady;
     const readyPromise = new Promise(r => { resolveReady = r; });
     const checkReady = () => {
-        if (ready.appstate && ready.reports && ready.attachments && ready.procedures) resolveReady();
+        if (ready.appstate && ready.reports && ready.attachments && ready.procedures && ready.equipment) resolveReady();
     };
 
     // 1. appstate doc (folders / templates / taskCounter)
@@ -358,6 +359,26 @@ export async function hydrate() {
         (err) => {
             console.warn('[HYDRATE] procedures listener error:', err.message);
             ready.procedures = true;
+            checkReady();
+        }
+    ));
+
+    // 5. equipment collection
+    _unsubscribers.push(onSnapshot(
+        collection(db, "equipment"),
+        (snap) => {
+            S.equipment = {};
+            snap.forEach(docSnap => {
+                const item = { id: docSnap.id, ...docSnap.data() };
+                S.equipment[item.id] = item;
+            });
+            ready.equipment = true;
+            checkReady();
+            _notifyChanged();
+        },
+        (err) => {
+            console.warn('[HYDRATE] equipment listener error:', err.message);
+            ready.equipment = true;
             checkReady();
         }
     ));
@@ -604,6 +625,38 @@ export async function apiGetFolderUploads(folderName) {
         }
     });
     return attachments;
+}
+
+/* ================================================================
+   API – EQUIPMENT (Firestore)
+================================================================ */
+export async function apiAddEquipment(item) {
+    const payload = _sanitize({ ...item, updatedAt: new Date().toISOString() });
+    const docRef = await addDoc(collection(db, "equipment"), payload);
+    return { id: docRef.id, ...payload };
+}
+
+export async function apiUpdateEquipment(id, updates) {
+    const payload = _sanitize({ ...updates, updatedAt: new Date().toISOString() });
+    await updateDoc(doc(db, "equipment", id), payload);
+    return payload;
+}
+
+export async function apiDeleteEquipment(id) {
+    await deleteDoc(doc(db, "equipment", id));
+}
+
+export async function apiLogEquipmentHandover(logData) {
+    const payload = _sanitize({
+        senderName:    logData.senderName,
+        recipientName: logData.recipientName,
+        recipientEmail: logData.recipientEmail || '',
+        tools:         logData.tools,   // [{ id, name, serialNumber }]
+        timestamp:     new Date().toISOString(),
+        createdAt:     serverTimestamp(),
+    });
+    const docRef = await addDoc(collection(db, "equipment_logs"), payload);
+    return { id: docRef.id, ...payload };
 }
 
 /* ================================================================

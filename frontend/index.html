@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.2.0">
+    <link rel="stylesheet" href="style.css?v=1.2.4">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -130,13 +130,7 @@ window._showLoginWhenSplashDone = false;
 </div>
 
 <!-- ══════════════════ TAB: EQUIPMENT ════════════════════════ -->
-<div id="tabEquipment" class="mobile-tab-panel hidden" aria-label="ציוד">
-    <div class="equipment-placeholder-wrap">
-        <div class="equipment-placeholder-icon">🔧</div>
-        <h2 class="equipment-placeholder-title">ניהול ציוד</h2>
-        <p class="equipment-placeholder-badge">בקרוב</p>
-    </div>
-</div>
+<div id="tabEquipment" class="mobile-tab-panel hidden" aria-label="ציוד"></div>
 
 <div class="app">
 
@@ -166,7 +160,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.7</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.2.4</div>
     </div>
 </aside>
 
@@ -555,6 +549,87 @@ window._showLoginWhenSplashDone = false;
     </div>
 </div>
 
+<!-- ══════════════════ EQUIPMENT: ADD / EDIT MODAL ═══════ -->
+<div class="overlay hidden" id="equipFormModal">
+    <div class="modal">
+        <h3 id="equipFormTitle">הוסף ציוד חדש</h3>
+        <input type="hidden" id="equipFormId" value="">
+        <div class="form-row">
+            <div class="fg">
+                <label class="lbl">שם הפריט</label>
+                <input type="text" id="equipName" placeholder='למשל: מולטימטר דיגיטלי' />
+            </div>
+            <div class="fg">
+                <label class="lbl">דגם</label>
+                <input type="text" id="equipModel" placeholder='למשל: Fluke 117' />
+            </div>
+            <div class="fg">
+                <label class="lbl">מספר סידורי</label>
+                <input type="text" id="equipSerial" placeholder='S/N' />
+            </div>
+            <div class="fg">
+                <label class="lbl">קטגוריה</label>
+                <select id="equipCategory" class="eq-select">
+                    <option value="כלי עבודה ידניים">כלי עבודה ידניים</option>
+                    <option value="ציוד לחץ וצנרת">ציוד לחץ וצנרת</option>
+                    <option value="מכשירי בדיקה ומדידה">מכשירי בדיקה ומדידה</option>
+                    <option value="חומרים וחוסרים">חומרים וחוסרים</option>
+                    <option value="ציוד בטיחות">ציוד בטיחות</option>
+                    <option value="כלי עבודה חשמליים">כלי עבודה חשמליים</option>
+                    <option value="ציוד כללי">ציוד כללי</option>
+                </select>
+            </div>
+            <div class="fg">
+                <label class="lbl">סטטוס</label>
+                <select id="equipStatus" class="eq-select" onchange="onEquipStatusChange()">
+                    <option value="storage">פנוי במחסן</option>
+                    <option value="active">בשימוש</option>
+                    <option value="repair">בתיקון</option>
+                </select>
+            </div>
+            <div class="fg" id="equipHolderFg" style="display:none">
+                <label class="lbl">אצל מי</label>
+                <input type="text" id="equipHolder" placeholder='שם הטכנאי' />
+            </div>
+        </div>
+        <div class="fg" style="margin-top:8px">
+            <label class="lbl">הערות</label>
+            <textarea id="equipNotes" placeholder="הערות נוספות..." style="min-height:54px;"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-confirm" onclick="saveEquipment()">שמור</button>
+            <button id="equipDeleteBtn" class="mbtn mbtn-danger" onclick="deleteEquipmentPrompt()" style="display:none">מחק</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('equipFormModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════ EQUIPMENT: HANDOVER MODAL ══════════ -->
+<div class="overlay hidden" id="handoverModal">
+    <div class="modal modal-lg">
+        <h3>העברת ציוד</h3>
+        <p class="modal-sub">בחר פריטים להעברה ואת שם הטכנאי המקבל</p>
+        <div class="form-row">
+            <div class="fg">
+                <label class="lbl">מעביר לידי</label>
+                <input type="text" id="handoverHolder" placeholder='שם הטכנאי' />
+            </div>
+            <div class="fg">
+                <label class="lbl">אימייל הטכנאי (לעדכון)</label>
+                <input type="email" id="handoverRecipientEmail" placeholder='technician@example.com' />
+            </div>
+        </div>
+        <div class="fg" style="margin-top:4px">
+            <label class="lbl">פריטים להעברה</label>
+            <div id="handoverItemList" class="handover-list"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-confirm" onclick="confirmHandover()">אשר העברה</button>
+            <button class="mbtn mbtn-cancel"  onclick="hideModal('handoverModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
 <!-- ══════════════════ ADMIN PANEL MODAL ═════════════════ -->
 <div class="overlay hidden" id="adminPanelModal">
     <div class="modal modal-lg">
@@ -611,7 +686,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.2.0"></script>
-<script type="module" src="Js/app.js?v=1.2.0"></script>
+<script type="module" src="Js/api.js?v=1.2.4"></script>
+<script type="module" src="Js/app.js?v=1.2.4"></script>
 </body>
 </html>
