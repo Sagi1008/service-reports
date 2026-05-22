@@ -50,7 +50,7 @@ function _renderRegistrationRequests() {
    PUBLIC API
 ================================================================ */
 export function setupAdminPanel(userEmail) {
-    if (userEmail !== ADMIN_EMAIL) return;
+    if ((userEmail?.toLowerCase().trim()) !== ADMIN_EMAIL) return;
     const adminBtn = document.getElementById('adminPanelBtn');
     if (adminBtn) adminBtn.classList.remove('hidden');
     if (!_adminUnsub) {

@@ -31,7 +31,8 @@ import { renderEquipmentTab } from './components/EquipmentTab.js';
 import { setupManagerPanel, cleanupManagerPanel } from './components/ManagerPanel.js';
 import { ADMIN_EMAIL, setupAdminPanel, cleanupAdminPanel } from './components/AdminPanel.js';
 
-const MANAGER_EMAIL = 'sagi.tisson@oficiency.com';
+const MANAGER_EMAIL  = 'sagi.tisson@oficiency.com';
+const MANAGER_EMAIL2 = 'maor.menachem@oficiency.com'; // backup manager
 
 /* ================================================================
    EXPOSE ALL FUNCTIONS GLOBALLY
@@ -337,7 +338,8 @@ async function init() {
         if (nb) nb.style.display = 'none';
     }
     renderHomeDashboard();
-    if (S.currentUser?.email === MANAGER_EMAIL) {
+    const _email = S.currentUser?.email?.toLowerCase().trim();
+    if (_email === MANAGER_EMAIL || _email === MANAGER_EMAIL2) {
         setupManagerPanel();
     }
     subscribeToChanges(() => {
