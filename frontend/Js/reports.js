@@ -122,6 +122,8 @@ export async function confirmNewReport() {
 export function openReport(id) {
     if (!confirmUnsaved()) return;
     closeMobileSidebar();
+    // On desktop, ensure the reports tab is active so the report editor is visible
+    if (window.innerWidth > 768 && window.switchTab) window.switchTab('reports');
     S.currentId   = id;
     S.currentMode = 'report';
     S.unsaved     = false;

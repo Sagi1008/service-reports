@@ -879,7 +879,7 @@ export function renderSidebar() {
 
         fi.innerHTML = `
             <div class="folder-hdr" onclick="toggleFolder(this)">
-                <span class="folder-name" onclick="event.stopPropagation();showFolderContent('${esc(name)}')">${esc(name)}</span>
+                <span class="folder-name" onclick="event.stopPropagation();navToFolder('${esc(name)}')">${esc(name)}</span>
                 <span class="folder-badge">${ids.length}</span>
                 <div class="folder-btns" onclick="event.stopPropagation()">
                     <button class="fbn" title="שנה שם" onclick="renameFolderPrompt('${esc(name)}')">
