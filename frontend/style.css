@@ -3585,8 +3585,78 @@ select.handover-input {
     .mobile-fab.fab-visible { display: flex; }
 }
 
+/* ================================================================
+   DESKTOP TAB NAVIGATION BAR
+================================================================ */
+.desktop-tab-bar {
+    display: none; /* hidden on mobile */
+    align-items: stretch;
+    gap: 0;
+    background: rgba(7,16,31,0.85);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+.dtab-btn {
+    padding: 0 22px;
+    height: 42px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Heebo', sans-serif;
+    color: #5d7a94;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: unset;
+    transition: color .18s, border-color .18s;
+    letter-spacing: -0.1px;
+}
+.dtab-btn:hover { color: #cbd5e1; }
+.dtab-btn.dtab-active {
+    color: #60a5fa;
+    border-bottom-color: #2563eb;
+    font-weight: 700;
+}
+
+/* Desktop panel: hidden by default, flex-fill when active */
+.desktop-panel {
+    display: none; /* always hidden on mobile; controlled by JS on desktop */
+}
+
 /* Desktop: show manager panel in main area, hide mobile copy */
 @media (min-width: 769px) {
-    #managerAdminPanelDesktop { display: block; }
     #managerAdminPanel { display: none !important; }
+
+    .desktop-tab-bar { display: flex; }
+
+    /* Desktop panels fill remaining height and scroll independently */
+    .desktop-panel:not(.hidden) {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Home dashboard inside desktop panel */
+    #desktopHomeDashboard {
+        flex: 1;
+        min-height: 0;
+        max-width: 680px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    /* Equipment panel fills full width */
+    #desktopEquipmentPanel { max-width: 100%; }
+
+    /* Manager panel inside home panel: un-hide when setupManagerPanel runs */
+    #managerAdminPanelDesktop {
+        max-width: 680px;
+        margin: 24px auto 0;
+        width: 100%;
+    }
 }

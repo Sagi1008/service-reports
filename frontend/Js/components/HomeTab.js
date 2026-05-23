@@ -15,7 +15,8 @@ function _reportStatus(r) {
 }
 
 export function renderHomeDashboard() {
-    const el = document.getElementById('homeDashboard');
+    const isMobile = window.innerWidth <= 768;
+    const el = document.getElementById(isMobile ? 'homeDashboard' : 'desktopHomeDashboard');
     if (!el) return;
 
     const user     = S.currentUser;

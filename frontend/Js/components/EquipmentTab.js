@@ -26,7 +26,8 @@ const _EQUIP_CATEGORIES = [
    EQUIPMENT TAB RENDERER
 ================================================================ */
 export function renderEquipmentTab() {
-    const el = document.getElementById('tabEquipment');
+    const isMobile = window.innerWidth <= 768;
+    const el = document.getElementById(isMobile ? 'tabEquipment' : 'desktopEquipmentPanel');
     if (!el) return;
 
     const items = Object.values(S.equipment);

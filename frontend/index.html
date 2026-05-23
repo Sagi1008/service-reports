@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.3.8">
+    <link rel="stylesheet" href="style.css?v=1.3.9">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -161,7 +161,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.8</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.9</div>
     </div>
 </aside>
 
@@ -175,14 +175,27 @@ window._showLoginWhenSplashDone = false;
         <div class="toolbar-actions" id="toolbarActions"></div>
     </div>
 
-    <div id="managerAdminPanelDesktop" class="hidden"></div>
+    <!-- Desktop-only horizontal tab navigation -->
+    <nav class="desktop-tab-bar" aria-label="ניווט ראשי">
+        <button class="dtab-btn dtab-active" data-dtab="reports" onclick="switchTab('reports')">דוחות</button>
+        <button class="dtab-btn" data-dtab="home"     onclick="switchTab('home')">בית</button>
+        <button class="dtab-btn" data-dtab="equipment" onclick="switchTab('equipment')">ציוד</button>
+    </nav>
+
+    <!-- Desktop: Home panel (manager panel + home dashboard) -->
+    <div id="desktopHomePanel" class="desktop-panel hidden">
+        <div id="managerAdminPanelDesktop" class="hidden"></div>
+        <div id="desktopHomeDashboard" class="home-dashboard"></div>
+    </div>
+
+    <!-- Desktop: Equipment panel -->
+    <div id="desktopEquipmentPanel" class="desktop-panel hidden"></div>
 
     <div class="report-area" id="reportArea">
 
         <div class="dashboard-view" id="dashboardView" style="display:none"></div>
 
         <div class="empty-state" id="emptyState">
-            <div class="empty-state-icon">📋</div>
             <h2>אין דוח פתוח</h2>
             <p>בחר דוח מהרשימה, לחץ <strong>"+ דוח חדש"</strong>, או פתח תבנית</p>
         </div>
@@ -693,7 +706,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.3.8"></script>
-<script type="module" src="Js/app.js?v=1.3.8"></script>
+<script type="module" src="Js/api.js?v=1.3.9"></script>
+<script type="module" src="Js/app.js?v=1.3.9"></script>
 </body>
 </html>

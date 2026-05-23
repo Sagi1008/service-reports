@@ -149,26 +149,44 @@ window.setTplServiceType = function(val) {
 function _isMobile() { return window.innerWidth <= 768; }
 
 function switchTab(tab) {
-    if (!_isMobile()) return;
+    if (_isMobile()) {
+        document.querySelectorAll('.bnav-item').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tab);
+        });
 
-    document.querySelectorAll('.bnav-item').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
-    });
+        const homePanel  = document.getElementById('tabHome');
+        const equipPanel = document.getElementById('tabEquipment');
+        const fab        = document.getElementById('mobileFab');
 
-    const homePanel  = document.getElementById('tabHome');
-    const equipPanel = document.getElementById('tabEquipment');
-    const fab        = document.getElementById('mobileFab');
+        if (homePanel)  homePanel.classList.toggle('hidden', tab !== 'home');
+        if (equipPanel) equipPanel.classList.toggle('hidden', tab !== 'equipment');
+        if (fab) fab.classList.toggle('fab-visible', tab === 'reports');
 
-    if (homePanel)  homePanel.classList.toggle('hidden', tab !== 'home');
-    if (equipPanel) equipPanel.classList.toggle('hidden', tab !== 'equipment');
+        if (tab === 'home')      renderHomeDashboard();
+        if (tab === 'equipment') renderEquipmentTab();
+        if (tab === 'reports' && !S.currentId) {
+            if (S.currentFolder) showFolderContent(S.currentFolder);
+            else                 showDashboard();
+        }
+    } else {
+        document.querySelectorAll('.dtab-btn').forEach(btn => {
+            btn.classList.toggle('dtab-active', btn.dataset.dtab === tab);
+        });
 
-    if (fab) fab.classList.toggle('fab-visible', tab === 'reports');
+        const dHomePanel  = document.getElementById('desktopHomePanel');
+        const dEquipPanel = document.getElementById('desktopEquipmentPanel');
+        const reportArea  = document.getElementById('reportArea');
 
-    if (tab === 'home')      renderHomeDashboard();
-    if (tab === 'equipment') renderEquipmentTab();
-    if (tab === 'reports' && !S.currentId) {
-        if (S.currentFolder) showFolderContent(S.currentFolder);
-        else                  showDashboard();
+        if (dHomePanel)  dHomePanel.classList.toggle('hidden', tab !== 'home');
+        if (dEquipPanel) dEquipPanel.classList.toggle('hidden', tab !== 'equipment');
+        if (reportArea)  reportArea.style.display = tab === 'reports' ? '' : 'none';
+
+        if (tab === 'home')      renderHomeDashboard();
+        if (tab === 'equipment') renderEquipmentTab();
+        if (tab === 'reports' && !S.currentId) {
+            if (S.currentFolder) showFolderContent(S.currentFolder);
+            else                 showDashboard();
+        }
     }
 }
 
@@ -341,8 +359,11 @@ async function init() {
     subscribeToChanges(() => {
         renderSidebar();
         renderHomeDashboard();
-        const equipEl = document.getElementById('tabEquipment');
-        if (equipEl && !equipEl.classList.contains('hidden')) renderEquipmentTab();
+        const mobileEquip  = document.getElementById('tabEquipment');
+        const desktopEquip = document.getElementById('desktopEquipmentPanel');
+        const equipVisible = (mobileEquip  && !mobileEquip.classList.contains('hidden'))
+                          || (desktopEquip && !desktopEquip.classList.contains('hidden'));
+        if (equipVisible) renderEquipmentTab();
         if (!S.currentId) {
             if (S.currentFolder) showFolderContent(S.currentFolder);
             else                 showDashboard();
