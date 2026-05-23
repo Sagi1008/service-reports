@@ -930,19 +930,26 @@ function _buildPrintLayout(r, sigTech, sigCust, imgSrcs) {
     let rowN = 0;
     const taskRows = tasks.map(t => {
         if (t.type === 'section') {
-            const secText = esc(t.title || t.description || t.label || '');
-            return `<tr><td colspan="4" style="height:14px;background:#fff;border:none;font-size:0;"></td></tr>
-                <tr><td colspan="4" style="padding:8px 12px;background:#f1f5f9;
-                border:1px solid #e2e8f0;border-right:4px solid #f59e0b;
-                font-weight:700;font-size:12px;color:#334155;">
-                ${secText}</td></tr>`;
+            const secText = esc(t.title || t.label || '');
+            return `<tr><td colspan="4" style="
+                padding:22px 14px 9px;
+                background:#e8edf5;
+                border-top:2px solid #c5d0e0;
+                border-bottom:1px solid #c5d0e0;
+                border-right:5px solid #f59e0b;
+                border-left:none;
+                font-weight:800;
+                font-size:13px;
+                color:#1a2640;
+                letter-spacing:0.3px;
+            ">${secText}</td></tr>`;
         }
         rowN++;
         const s      = STATUS_MAP[t.status] || STATUS_MAP.pending;
         const rowBg  = rowN % 2 === 0 ? '#f9fafb' : '#ffffff';
         return `<tr style="background:${rowBg};">
           <td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;
-            font-size:11px;color:#94a3b8;">${rowN}</td>
+            font-size:11px;color:#94a3b8;white-space:nowrap;">${rowN}</td>
           <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;">
             ${esc(t.description || '')}</td>
           <td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;">
