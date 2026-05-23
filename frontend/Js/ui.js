@@ -971,7 +971,7 @@ export function updateToolbar() {
     const actions = document.getElementById('toolbarActions');
 
     if (!S.currentId) {
-        title.innerHTML  = 'מערכת דוחות טכנאי שטח';
+        title.innerHTML  = 'מערכת ניהול ותחזוקה';
         mode.innerHTML   = '';
         actions.innerHTML= '';
         return;

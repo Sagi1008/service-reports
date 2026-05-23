@@ -3345,7 +3345,7 @@ select.handover-input {
 }
 
 #managerAdminPanelDesktop {
-    display: none; /* shown only on desktop via media query below */
+    /* visibility controlled by .hidden class; parent .desktop-panel hides it on mobile */
     padding: 12px 16px 12px;
     overflow-y: auto;
     flex-shrink: 0;
@@ -3648,8 +3648,9 @@ select.handover-input {
         padding-bottom: 40px;
     }
 
-    /* Manager panel inside desktop home panel */
-    #managerAdminPanelDesktop {
+    /* Manager panel inside desktop home panel: visible when .hidden is removed */
+    #managerAdminPanelDesktop:not(.hidden) {
+        display: block;
         max-width: 720px;
         margin: 24px auto 0;
         width: 100%;
