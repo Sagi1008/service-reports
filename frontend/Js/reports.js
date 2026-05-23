@@ -145,6 +145,7 @@ export function openReport(id) {
     document.getElementById('fVisitDate').value    = r.visitDate    || '';
     document.getElementById('fNumber').value       = r.number       || '';
     document.getElementById('fPermComments').value  = r.permComments  || '';
+    if (window.autoExpand) setTimeout(() => window.autoExpand(document.getElementById('fPermComments')), 0);
     document.getElementById('fFinalComments').value = r.finalComments || '';
     const _stVal = r.serviceType || '';
     document.getElementById('fServiceType').value = _stVal;
@@ -948,15 +949,15 @@ function _buildPrintLayout(r, sigTech, sigCust, imgSrcs) {
     let rowN = 0;
     const taskRows = tasks.map(t => {
         if (t.type === 'section') {
-            return `<tr><td colspan="4" style="padding:8px 12px;background:#f1f5f9;
-                border:1px solid #e2e8f0;border-right:4px solid #f59e0b;
+            return `<tr style="page-break-inside:avoid;"><td colspan="4" style="padding:14px 12px 8px;background:#f1f5f9;
+                border:1px solid #e2e8f0;border-top:3px solid #d1d5db;border-right:4px solid #f59e0b;
                 font-weight:700;font-size:12px;color:#334155;">
                 ${esc(t.label || t.title || t.description || '')}</td></tr>`;
         }
         rowN++;
         const s      = STATUS_MAP[t.status] || STATUS_MAP.pending;
         const rowBg  = rowN % 2 === 0 ? '#f9fafb' : '#ffffff';
-        return `<tr style="background:${rowBg};">
+        return `<tr style="background:${rowBg};page-break-inside:avoid;">
           <td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;
             font-size:11px;color:#94a3b8;">${rowN}</td>
           <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;">

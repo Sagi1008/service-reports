@@ -1080,6 +1080,7 @@ input:focus, textarea:focus, select:focus {
 }
 select option { background: #0c1827; color: var(--ink); }
 textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
+#fPermComments { overflow-y: hidden; resize: none; min-height: 80px; }
 
 /* ================================================================
    TASKS
@@ -1237,7 +1238,8 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 16px 0 8px;
+    margin: 28px 0 8px;
+    padding-top: 4px;
 }
 .section-title-item::before,
 .section-title-item::after {
@@ -2321,7 +2323,9 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
     border-color: #e2e8f0 !important;
     box-shadow: none !important;
     color: #0f172a !important;
+    page-break-inside: avoid;
 }
+.pdf-export-mode .card { page-break-inside: avoid; }
 .pdf-export-mode .task-item.performed {
     background: #f0fdf4 !important;
     border-color: #bbf7d0 !important;

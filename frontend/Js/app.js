@@ -122,7 +122,8 @@ window.goBackToDashboard = function() {
     if (S.unsaved && S.currentId) {
         if (!confirm('יש שינויים שלא נשמרו. לנטוש?')) return;
     }
-    // On desktop, ensure the reports tab is active
+    S.currentId = null;
+    S.unsaved = false;
     if (!_isMobile()) switchTab('reports');
     else {
         if (S.currentFolder) showFolderContent(S.currentFolder);
@@ -139,6 +140,11 @@ window.navToDashboard = function() {
     if (!_isMobile()) switchTab('reports');
     else showDashboard();
 };
+window.autoExpand = function(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+};
+
 window.openImportAssociationModal = openImportAssociationModal;
 window.deleteAttachment           = deleteAttachment;
 
@@ -366,6 +372,8 @@ async function init() {
     document.querySelectorAll('#reportEditor input, #reportEditor textarea').forEach(el => {
         el.addEventListener('input', () => markUnsaved());
     });
+    const _permTA = document.getElementById('fPermComments');
+    if (_permTA) _permTA.addEventListener('input', () => window.autoExpand(_permTA));
     if (!navigator.share) {
         const nb = document.getElementById('shareNativeBtn');
         if (nb) nb.style.display = 'none';
