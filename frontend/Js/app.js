@@ -145,6 +145,12 @@ window.autoExpand = function(el) {
     el.style.height = el.scrollHeight + 'px';
 };
 
+window.closeTplEditor = function() {
+    const page = document.getElementById('tplEditorPage');
+    if (page) page.style.display = 'none';
+    showDashboard();
+};
+
 window.openImportAssociationModal = openImportAssociationModal;
 window.deleteAttachment           = deleteAttachment;
 

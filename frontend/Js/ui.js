@@ -131,6 +131,8 @@ function _showContentView() {
     document.getElementById('emptyState').style.display    = 'none';
     document.getElementById('reportEditor').style.display  = 'none';
     document.getElementById('dashboardView').style.display = '';
+    const tplPage = document.getElementById('tplEditorPage');
+    if (tplPage) tplPage.style.display = 'none';
     updateToolbar();
     renderSidebar();
 }
@@ -743,7 +745,8 @@ export function appendTplTask(t, num) {
     row.className = 'tpl-task-row';
     row.dataset.type = 'task';
     row.innerHTML = `
-        <span style="font-size:10.5px;font-weight:800;color:var(--slate-400);min-width:20px;text-align:center;">${num}</span>
+        <div class="drag-handle" title="גרור לשינוי סדר">⋮⋮</div>
+        <span style="font-size:10.5px;font-weight:800;color:var(--slate-400);min-width:20px;text-align:center;flex-shrink:0;">${num}</span>
         <input type="text" class="tpl-task-input" value="${esc(t.description||'')}" placeholder="תיאור משימה...">
         <button class="tpl-task-del" onclick="this.parentElement.remove();renumberTplTasks()">✕</button>
     `;
@@ -756,6 +759,7 @@ export function appendTplSection(t) {
     div.className  = 'section-title-item';
     div.dataset.type = 'section';
     div.innerHTML = `
+        <div class="drag-handle" title="גרור לשינוי סדר">⋮⋮</div>
         <input type="text" class="section-title-input" value="${esc(t.title||'')}" placeholder="שם האזור / קטגוריה...">
         <button class="section-del-btn" onclick="this.closest('.section-title-item').remove()">✕</button>
     `;
@@ -1035,25 +1039,41 @@ export function closeMobileSidebar() {
    DRAG & DROP (SortableJS)
 ================================================================ */
 export function initSortable() {
+    if (typeof Sortable === 'undefined') return;
+
     const list = document.getElementById('tasksList');
-    if (!list || typeof Sortable === 'undefined') return;
-    // Destroy any existing instance before re-creating
-    if (list._sortable) { list._sortable.destroy(); list._sortable = null; }
-    list._sortable = Sortable.create(list, {
-        animation: 150,
-        handle: '.drag-handle',
-        delay: 150,
-        delayOnTouchOnly: true,
-        ghostClass:  'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        dragClass:   'sortable-drag',
-        onEnd() {
-            // Re-number only task items (sections are unnumbered)
-            let num = 0;
-            list.querySelectorAll('.task-item').forEach(el => {
-                el.querySelector('.task-num').textContent = ++num;
-            });
-            markUnsaved();
-        },
-    });
+    if (list) {
+        if (list._sortable) { list._sortable.destroy(); list._sortable = null; }
+        list._sortable = Sortable.create(list, {
+            animation: 150,
+            handle: '.drag-handle',
+            delay: 150,
+            delayOnTouchOnly: true,
+            ghostClass:  'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass:   'sortable-drag',
+            onEnd() {
+                let num = 0;
+                list.querySelectorAll('.task-item').forEach(el => {
+                    el.querySelector('.task-num').textContent = ++num;
+                });
+                markUnsaved();
+            },
+        });
+    }
+
+    const tplList = document.getElementById('tplTaskList');
+    if (tplList) {
+        if (tplList._sortable) { tplList._sortable.destroy(); tplList._sortable = null; }
+        tplList._sortable = Sortable.create(tplList, {
+            animation: 150,
+            handle: '.drag-handle',
+            delay: 150,
+            delayOnTouchOnly: true,
+            ghostClass:  'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass:   'sortable-drag',
+            onEnd() { renumberTplTasks(); },
+        });
+    }
 }

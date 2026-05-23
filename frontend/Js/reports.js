@@ -296,7 +296,7 @@ export function showTemplateEditor(id, folderName = null) {
     const tpl = id ? S.templates[id] : null;
     document.getElementById('tplEditorId').value          = id || '';
     document.getElementById('tplEditorFolder').value      = tpl ? (tpl.folder || '') : (folderName || '');
-    document.getElementById('tplEditorTitle').textContent = tpl ? `עריכת תבנית` : `תבנית חדשה`;
+    document.getElementById('tplEditorTitle').textContent = tpl ? 'עריכת תבנית' : 'תבנית חדשה';
     document.getElementById('tplName').value              = tpl ? (tpl.name || '') : '';
     document.getElementById('tplPermComments').value      = tpl ? (tpl.permComments || '') : '';
     const _tplStVal = tpl ? (tpl.serviceType || '') : '';
@@ -306,7 +306,27 @@ export function showTemplateEditor(id, folderName = null) {
     });
     renderTplTasks(tpl ? tpl.tasks : []);
     renderTplAppendices(tpl ? (tpl.appendices || []) : []);
-    showModal('tplEditorModal');
+    closeMobileSidebar();
+
+    // On desktop: switch to reports tab without triggering showDashboard
+    if (window.innerWidth > 768) {
+        document.querySelectorAll('.dtab-btn').forEach(b =>
+            b.classList.toggle('dtab-active', b.dataset.dtab === 'reports'));
+        const dHome  = document.getElementById('desktopHomePanel');
+        const dEquip = document.getElementById('desktopEquipmentPanel');
+        if (dHome)  dHome.style.display  = 'none';
+        if (dEquip) dEquip.style.display = 'none';
+        const rArea = document.getElementById('reportArea');
+        if (rArea) rArea.style.display = '';
+    }
+
+    // Show template editor page, hide other report-area views
+    document.getElementById('dashboardView').style.display = 'none';
+    document.getElementById('emptyState').style.display    = 'none';
+    document.getElementById('reportEditor').style.display  = 'none';
+    document.getElementById('tplEditorPage').style.display = 'block';
+    document.getElementById('tplEditorPage').scrollTop     = 0;
+
     setTimeout(() => document.getElementById('tplName').focus(), 80);
 }
 
@@ -340,7 +360,8 @@ export function saveTplEditor() {
 
     persist();
     renderSidebar();
-    hideModal('tplEditorModal');
+    document.getElementById('tplEditorPage').style.display = 'none';
+    showDashboard();
     toast(`תבנית "${name}" נשמרה ✓`, 'success');
 }
 
