@@ -140,7 +140,9 @@ function _buildFolderCards(folderNames) {
         const count = (S.folders[name] || []).filter(id => S.reports[id]).length;
         return `
             <div class="dash-folder-card" onclick="showFolderContent('${esc(name)}')">
-                <div class="dash-folder-icon">📁</div>
+                <div class="dash-folder-icon">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                </div>
                 <div class="dash-folder-name">${esc(name)}</div>
                 <div class="dash-folder-count">${count} דוחות</div>
             </div>`;
@@ -177,7 +179,6 @@ export function showDashboard() {
     } else {
         html += `
             <div class="dash-empty">
-                <div class="dash-empty-icon">📋</div>
                 <h2>אין דוחות עדיין</h2>
                 <p>לחץ <strong>"+ דוח חדש"</strong> כדי להתחיל</p>
             </div>`;
@@ -223,7 +224,7 @@ export async function showFolderContent(folderName) {
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><polyline points="9 18 15 12 9 6"/></svg>
                 חזור לתיקיות
             </button>
-            <h2 class="site-title">📁 ${esc(folderName)}</h2>
+            <h2 class="site-title">${esc(folderName)}</h2>
         </div>
         <div class="dash-empty" style="opacity:.5"><p>טוען...</p></div>`;
 
@@ -258,7 +259,9 @@ export async function showFolderContent(folderName) {
         const safeId = esc(t.id);
         return `
             <div class="site-tpl-card">
-                <div class="site-tpl-icon">📋</div>
+                <div class="site-tpl-icon">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/></svg>
+                </div>
                 <div class="site-tpl-info">
                     <div class="site-tpl-name">${esc(t.name)}</div>
                     <div class="site-tpl-meta">${t.tasks?.length || 0} משימות</div>
@@ -270,7 +273,7 @@ export async function showFolderContent(folderName) {
                     </button>
                     <button class="site-tpl-btn"
                         onclick="showTemplateEditor('${safeId}','${safeFolderName}')">
-                        ✏️
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
                     <button class="site-tpl-btn site-tpl-btn-del"
                         onclick="deleteTemplatePrompt('${safeId}')" title="מחק תבנית">
@@ -291,7 +294,6 @@ export async function showFolderContent(folderName) {
     if (!hasAny) {
         templatesHtml += `
             <div class="dash-empty">
-                <div class="dash-empty-icon">📋</div>
                 <p>אין תבניות עדיין. לחץ "+ תבנית חדשה" ליצירה.</p>
             </div>`;
     } else {
@@ -316,7 +318,7 @@ export async function showFolderContent(folderName) {
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><polyline points="9 18 15 12 9 6"/></svg>
                 חזור לתיקיות
             </button>
-            <h2 class="site-title">📁 ${esc(folderName)}</h2>
+            <h2 class="site-title">${esc(folderName)}</h2>
             ${totalReports ? `<span class="dash-count">${totalReports}</span>` : ''}
             <div class="folder-menu-wrap">
                 <button class="folder-menu-btn" onclick="toggleFolderMenu(event)" title="אפשרויות">
@@ -362,7 +364,6 @@ function _buildProceduresPanel(folderName) {
     if (!procs.length) {
         html += `
             <div class="dash-empty" style="min-height:160px">
-                <div class="dash-empty-icon" style="opacity:.3">📄</div>
                 <p>אין נהלים מצורפים לאתר זה עדיין.</p>
             </div>`;
     } else {
@@ -812,7 +813,9 @@ export function appendTplAppendixBlock(app) {
             <div class="appendix-file-name">${escHtml(app.fileName || app.title || '')}</div>
             <div class="appendix-file-size">${app.fileSize || ''}</div>
         </div>
-        <button class="appendix-item-del" onclick="this.closest('.appendix-editor-block').remove()" title="הסר">🗑️</button>
+        <button class="appendix-item-del" onclick="this.closest('.appendix-editor-block').remove()" title="הסר">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
     `;
     list.appendChild(div);
 }
@@ -865,22 +868,26 @@ export function renderSidebar() {
             const r   = S.reports[id];
             const act = id === S.currentId;
             return `<div class="row-item ${act?'active':''}" onclick="openReport('${id}')">
-                        <span class="row-icon">📄</span>
                         <span class="row-name">${esc(r.title||'ללא שם')}</span>
                         <div class="rbtns" onclick="event.stopPropagation()">
-                            <button class="rbn" title="מחק" onclick="if(confirm('למחוק דוח זה?')){deleteReportById('${id}')}">🗑️</button>
+                            <button class="rbn" title="מחק" onclick="if(confirm('למחוק דוח זה?')){deleteReportById('${id}')}">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                            </button>
                         </div>
                     </div>`;
         }).join('');
 
         fi.innerHTML = `
             <div class="folder-hdr" onclick="toggleFolder(this)">
-                <span style="font-size:14px">📁</span>
                 <span class="folder-name" onclick="event.stopPropagation();showFolderContent('${esc(name)}')">${esc(name)}</span>
                 <span class="folder-badge">${ids.length}</span>
                 <div class="folder-btns" onclick="event.stopPropagation()">
-                    <button class="fbn" title="שנה שם" onclick="renameFolderPrompt('${esc(name)}')">✏️</button>
-                    <button class="fbn" title="מחק" onclick="deleteFolderPrompt('${esc(name)}')">🗑️</button>
+                    <button class="fbn" title="שנה שם" onclick="renameFolderPrompt('${esc(name)}')">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button class="fbn" title="מחק" onclick="deleteFolderPrompt('${esc(name)}')">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    </button>
                 </div>
                 <span class="folder-chevron">▶</span>
             </div>
@@ -905,10 +912,11 @@ export function renderSidebar() {
             const act = id === S.currentId;
             const d   = document.createElement('div');
             d.className = `row-item ${act?'active':''}`;
-            d.innerHTML = `<span class="row-icon">📄</span>
-                           <span class="row-name">${esc(r.title||'ללא שם')}</span>
+            d.innerHTML = `<span class="row-name">${esc(r.title||'ללא שם')}</span>
                            <div class="rbtns" onclick="event.stopPropagation()">
-                               <button class="rbn" title="מחק" onclick="if(confirm('למחוק?')){deleteReportById('${id}')}">🗑️</button>
+                               <button class="rbn" title="מחק" onclick="if(confirm('למחוק?')){deleteReportById('${id}')}">
+                                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                               </button>
                            </div>`;
             d.onclick = () => window.openReport(id);
             c.appendChild(d);
@@ -931,12 +939,15 @@ export function renderSidebar() {
             const t   = S.templates[id];
             const d   = document.createElement('div');
             d.className = 'row-item';
-            d.innerHTML = `<span class="row-icon">📋</span>
-                           <span class="row-name">${esc(t.name)}</span>
+            d.innerHTML = `<span class="row-name">${esc(t.name)}</span>
                            <span style="font-size:10px;color:#3d506b;flex-shrink:0;">${t.tasks.length}</span>
                            <div class="rbtns" onclick="event.stopPropagation()">
-                               <button class="rbn" title="עריכה" onclick="showTemplateEditor('${id}')">✏️</button>
-                               <button class="rbn" title="מחק" onclick="deleteTemplatePrompt('${id}')">🗑️</button>
+                               <button class="rbn" title="עריכה" onclick="showTemplateEditor('${id}')">
+                                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                               </button>
+                               <button class="rbn" title="מחק" onclick="deleteTemplatePrompt('${id}')">
+                                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                               </button>
                            </div>`;
             d.onclick = () => window.createReportFromTemplate(id);
             c.appendChild(d);

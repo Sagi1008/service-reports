@@ -43,7 +43,7 @@ export function showNewReportModal() {
     } else {
         list.innerHTML = tpls.map(t => {
             return `<div class="tpl-opt" data-tpl="${t.id}" onclick="selectNewReportTpl(this,'${t.id}')">
-                        <span>📋</span><span>${esc(t.name)}</span>
+                        <span>${esc(t.name)}</span>
                         <span style="font-size:11px;color:var(--slate-400);margin-right:auto;">${(t.tasks||[]).length} משימות</span>
                     </div>`;
         }).join('');
@@ -473,7 +473,7 @@ export function showMoveFolderModal() {
     const list = document.getElementById('folderOptList');
     list.innerHTML = names.map(name => `
         <div class="folder-opt ${name === cur ? 'selected' : ''}" onclick="moveToFolder('${esc(name)}')">
-            📁 ${esc(name)}
+            ${esc(name)}
         </div>`).join('');
     showModal('moveFolderModal');
 }
@@ -550,7 +550,7 @@ export function confirmDeleteFolder() {
 export function onDocumentFilePicked(e) {
     const file = e.target.files[0];
     if (!file) return;
-    document.getElementById('docFilePreview').textContent = `📄 ${file.name}`;
+    document.getElementById('docFilePreview').textContent = file.name;
     document.getElementById('docUploadBtn').disabled = false;
 }
 

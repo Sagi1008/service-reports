@@ -75,7 +75,6 @@ export function renderEquipmentTab() {
     if (!totalItems) {
         html += `
             <div class="eq-empty">
-                <div class="eq-empty-icon">🔧</div>
                 <p>אין פריטי ציוד במערכת.<br>לחץ <strong>+ הוסף</strong> להוספה.</p>
             </div>`;
     } else {
@@ -229,6 +228,35 @@ async function _deleteEquipment(id) {
 ================================================================ */
 let _handoverAllItems = [];
 
+const _MACHSAN_ENTRY = { name: 'מחסן', email: MANAGER_EMAIL };
+const _SAGI_ENTRY    = { name: 'שגיא', email: MANAGER_EMAIL };
+
+function _buildUserOptions(placeholder) {
+    return `<option value="">${placeholder}</option>`;
+}
+
+function _appendUserOptions(sel, users) {
+    const machsanOpt = document.createElement('option');
+    machsanOpt.value = JSON.stringify(_MACHSAN_ENTRY);
+    machsanOpt.textContent = 'מחסן';
+    sel.appendChild(machsanOpt);
+
+    const sagiOpt = document.createElement('option');
+    sagiOpt.value = JSON.stringify(_SAGI_ENTRY);
+    sagiOpt.textContent = `שגיא — ${MANAGER_EMAIL}`;
+    sel.appendChild(sagiOpt);
+
+    const sagiEmailLower = MANAGER_EMAIL.toLowerCase();
+    users
+        .filter(u => (u.email || '').toLowerCase() !== sagiEmailLower)
+        .forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify({ name: u.name, email: u.email });
+            opt.textContent = `${u.name} — ${u.email}`;
+            sel.appendChild(opt);
+        });
+}
+
 function _renderHandoverList(filterText) {
     const q    = (filterText || '').trim().toLowerCase();
     const list = document.getElementById('handoverItemList');
@@ -260,59 +288,44 @@ window.filterHandoverItems = function(val) {
     _renderHandoverList(val);
 };
 
-window.onHandoverTechSelect = function(sel) {
-    const val     = sel.value;
-    const holderEl = document.getElementById('handoverHolder');
-    const emailEl  = document.getElementById('handoverRecipientEmail');
-    if (val) {
-        try {
-            const parsed = JSON.parse(val);
-            if (holderEl) holderEl.value = parsed.name  || '';
-            if (emailEl)  emailEl.value  = parsed.email || '';
-        } catch (_) {}
-    } else {
-        if (holderEl) holderEl.value = '';
-        if (emailEl)  emailEl.value  = '';
-    }
-};
-
 window.showHandoverModal = async function() {
     _handoverAllItems = Object.values(S.equipment)
         .slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
 
-    const holderEl = document.getElementById('handoverHolder');
-    const emailEl  = document.getElementById('handoverRecipientEmail');
-    const searchEl = document.getElementById('handoverSearch');
-    const selEl    = document.getElementById('handoverTechSelect');
-    if (holderEl) holderEl.value = '';
-    if (emailEl)  emailEl.value  = '';
-    if (searchEl) searchEl.value = '';
-    if (selEl)    selEl.value    = '';
+    const senderSel    = document.getElementById('handoverSender');
+    const recipientSel = document.getElementById('handoverRecipient');
+    const searchEl     = document.getElementById('handoverSearch');
 
+    if (searchEl) searchEl.value = '';
     _renderHandoverList('');
 
-    if (selEl) {
-        selEl.innerHTML = '<option value="">בחר טכנאי מהרשימה...</option>';
-        try {
-            const users = await apiGetApprovedUsers();
-            users.forEach(u => {
-                const opt = document.createElement('option');
-                opt.value = JSON.stringify({ name: u.name, email: u.email });
-                opt.textContent = `${u.name} — ${u.email}`;
-                selEl.appendChild(opt);
-            });
-        } catch (e) {
-            console.warn('[HANDOVER] could not load approved users:', e.message);
-        }
+    let users = [];
+    try { users = await apiGetApprovedUsers(); }
+    catch (e) { console.warn('[HANDOVER] could not load approved users:', e.message); }
+
+    if (senderSel) {
+        senderSel.innerHTML = _buildUserOptions('בחר מוסר...');
+        _appendUserOptions(senderSel, users);
+    }
+    if (recipientSel) {
+        recipientSel.innerHTML = _buildUserOptions('בחר מקבל...');
+        _appendUserOptions(recipientSel, users);
     }
 
     showModal('handoverModal');
 };
 
 window.confirmHandover = async function() {
-    const holder         = (document.getElementById('handoverHolder')?.value || '').trim();
-    const recipientEmail = (document.getElementById('handoverRecipientEmail')?.value || '').trim();
-    if (!holder) { toast('יש לבחור או להזין שם טכנאי', 'error'); return; }
+    const senderSel    = document.getElementById('handoverSender');
+    const recipientSel = document.getElementById('handoverRecipient');
+
+    if (!senderSel?.value)    { toast('יש לבחור מוסר',  'error'); return; }
+    if (!recipientSel?.value) { toast('יש לבחור מקבל', 'error'); return; }
+
+    const sender    = JSON.parse(senderSel.value);
+    const recipient = JSON.parse(recipientSel.value);
+    const toStorage = recipient.name === 'מחסן';
+
     const checked = Array.from(document.querySelectorAll('.handover-check:checked'));
     if (!checked.length) { toast('יש לבחור לפחות פריט אחד', 'error'); return; }
 
@@ -324,13 +337,19 @@ window.confirmHandover = async function() {
     try {
         await Promise.all(checked.map(cb => {
             const id     = cb.dataset.id;
-            const update = { status: 'active', currentHolder: holder };
+            const update = toStorage
+                ? { status: 'storage', currentHolder: '' }
+                : { status: 'active',  currentHolder: recipient.name };
             S.equipment[id] = { ...S.equipment[id], ...update };
             return apiUpdateEquipment(id, update);
         }));
 
-        const senderName = S.currentUser?.displayName || S.currentUser?.email || 'מנהל המערכת';
-        await apiLogEquipmentHandover({ senderName, recipientName: holder, recipientEmail, tools });
+        await apiLogEquipmentHandover({
+            senderName:    sender.name,
+            recipientName: recipient.name,
+            recipientEmail: recipient.email,
+            tools,
+        });
 
         const now = new Date().toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
         const toolLines = tools.map(t =>
@@ -341,8 +360,8 @@ window.confirmHandover = async function() {
             '',
             'להלן פרטי תנועת ציוד שבוצעה במערכת Oficiency:',
             '',
-            `מוסר: ${senderName}`,
-            `מקבל: ${holder}`,
+            `מוסר: ${sender.name}`,
+            `מקבל: ${recipient.name}`,
             `תאריך ושעה: ${now}`,
             '',
             'ציוד שהועבר:',
@@ -352,12 +371,12 @@ window.confirmHandover = async function() {
             'Oficiency | מערכת ניהול ותחזוקה',
         ].join('\n');
 
-        const toField = [recipientEmail, MANAGER_EMAIL].filter(Boolean).join(',');
+        const toField = [recipient.email, MANAGER_EMAIL].filter(Boolean).join(',');
         const mailUrl = `mailto:${toField}?subject=${encodeURIComponent('עדכון תנועת ציוד במערכת - Oficiency')}&body=${encodeURIComponent(bodyText)}`;
         window.open(mailUrl, '_blank');
 
         hideModal('handoverModal');
-        toast(`${tools.length} פריטים הועברו ל-${holder} — הלוג נשמר ✓`, 'success');
+        toast(`${tools.length} פריטים הועברו ל-${recipient.name} — הלוג נשמר`, 'success');
         renderEquipmentTab();
     } catch (e) {
         console.error('[HANDOVER] error:', e);

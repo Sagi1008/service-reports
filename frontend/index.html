@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.3.1">
+    <link rel="stylesheet" href="style.css?v=1.3.8">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -144,24 +144,24 @@ window._showLoginWhenSplashDone = false;
         <div class="sidebar-logo" id="sidebarLogo" onclick="showDashboard()">
             <img src="assets/logo.png" alt="Oficiency Logo" class="company-logo">
         </div>
-        <button class="btn-new-folder" onclick="showModal('createFolderModal')">📁 + תיקייה חדשה</button>
+        <button class="btn-new-folder" onclick="showModal('createFolderModal')">+ תיקייה חדשה</button>
     </div>
 
     <div class="sidebar-body" id="sidebarBody"></div>
 
     <div class="sidebar-footer">
         <button class="btn-sb-primary" onclick="showNewReportModal()">+ דוח חדש</button>
-        <button class="btn-sb-secondary" onclick="showTemplateEditor(null)">📋 + תבנית חדשה</button>
-        <button class="btn-sb-secondary" onclick="showModal('importChoiceModal')">📂 ייבוא</button>
+        <button class="btn-sb-secondary" onclick="showTemplateEditor(null)">+ תבנית חדשה</button>
+        <button class="btn-sb-secondary" onclick="showModal('importChoiceModal')">ייבוא</button>
         <button id="adminPanelBtn" class="btn-admin-panel hidden" onclick="showAdminPanel()">
-            👤 בקשות הרשמה
+            בקשות הרשמה
             <span id="adminBadge" class="admin-badge hidden">0</span>
         </button>
         <div class="user-strip">
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.7</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.8</div>
     </div>
 </aside>
 
@@ -611,21 +611,18 @@ window._showLoginWhenSplashDone = false;
 <div class="overlay hidden" id="handoverModal">
     <div class="modal modal-lg">
         <h3 class="handover-modal-title">העברת ציוד</h3>
-        <p class="modal-sub">בחר טכנאי מהרשימה ואת הפריטים להעברה</p>
-        <div class="fg" style="margin-bottom:10px">
-            <label class="lbl handover-lbl">טכנאי מאושר</label>
-            <select id="handoverTechSelect" class="handover-input" onchange="onHandoverTechSelect(this)">
-                <option value="">בחר טכנאי מהרשימה...</option>
-            </select>
-        </div>
-        <div class="form-row" style="margin-bottom:10px">
+        <div class="form-row" style="margin-bottom:12px">
             <div class="fg">
-                <label class="lbl handover-lbl">שם הטכנאי</label>
-                <input type="text" id="handoverHolder" class="handover-input" placeholder="שם הטכנאי" />
+                <label class="lbl handover-lbl">מוסר</label>
+                <select id="handoverSender" class="handover-input">
+                    <option value="">בחר מוסר...</option>
+                </select>
             </div>
             <div class="fg">
-                <label class="lbl handover-lbl">אימייל הטכנאי</label>
-                <input type="email" id="handoverRecipientEmail" class="handover-input" placeholder="technician@example.com" />
+                <label class="lbl handover-lbl">מקבל</label>
+                <select id="handoverRecipient" class="handover-input">
+                    <option value="">בחר מקבל...</option>
+                </select>
             </div>
         </div>
         <div class="fg">
@@ -643,7 +640,7 @@ window._showLoginWhenSplashDone = false;
 <!-- ══════════════════ ADMIN PANEL MODAL ═════════════════ -->
 <div class="overlay hidden" id="adminPanelModal">
     <div class="modal modal-lg">
-        <h3>👤 בקשות הרשמה ממתינות</h3>
+        <h3>בקשות הרשמה ממתינות</h3>
         <div id="adminRequestsList">
             <div class="reg-requests-empty">טוען...</div>
         </div>
@@ -696,7 +693,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.3.1"></script>
-<script type="module" src="Js/app.js?v=1.3.1"></script>
+<script type="module" src="Js/api.js?v=1.3.8"></script>
+<script type="module" src="Js/app.js?v=1.3.8"></script>
 </body>
 </html>

@@ -1,4 +1,7 @@
 import { S, esc, fmtDate } from '../api.js';
+import { renderRecentLogsInto } from './ManagerPanel.js';
+
+const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com', 'maor.menachem@oficiency.com'];
 
 /* ================================================================
    HOME DASHBOARD
@@ -50,6 +53,8 @@ export function renderHomeDashboard() {
     const latest = allReports
         .filter(r => r.title)
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0];
+
+    const isManager = _MANAGER_EMAILS.includes(user?.email?.toLowerCase().trim());
 
     el.innerHTML = `
         <div class="hd-wrap">
@@ -108,5 +113,17 @@ export function renderHomeDashboard() {
                 <div class="hd-resume-empty">אין דוחות עדיין. לחץ + ליצירת דוח חדש.</div>
             `}
 
+            ${isManager ? `
+            <div class="home-logs-section">
+                <div class="home-logs-title">תנועות ציוד אחרונות</div>
+                <div id="homeRecentLogs" class="home-logs-list">
+                    <div class="home-logs-empty">טוען...</div>
+                </div>
+            </div>` : ''}
+
         </div>`;
+
+    if (isManager) {
+        renderRecentLogsInto(document.getElementById('homeRecentLogs'));
+    }
 }

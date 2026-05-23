@@ -6,7 +6,8 @@ import { toast } from '../ui.js';
    Renders into TWO containers:
      #managerAdminPanel        – mobile (inside #tabHome)
      #managerAdminPanelDesktop – desktop (inside main.main)
-   Both are populated via data-attributes so no duplicate IDs exist.
+   Recent logs are rendered separately into #homeRecentLogs via
+   renderRecentLogsInto(), called from HomeTab.js.
 ================================================================ */
 let _mgrPendingUnsub = null;
 let _mgrLogsUnsub    = null;
@@ -49,7 +50,7 @@ function _renderPending() {
                     </div>
                     <div class="mgr-row-actions">
                         <button class="mgr-btn mgr-btn-approve" onclick="mgrApprove('${_esc(req.id)}')">אשר</button>
-                        <button class="mgr-btn mgr-btn-block"   onclick="mgrReject('${_esc(req.id)}')">חסום</button>
+                        <button class="mgr-btn mgr-btn-block"   onclick="mgrReject('${_esc(req.id)}')">דחה</button>
                     </div>
                 </div>`).join('');
         }
@@ -82,43 +83,43 @@ function _renderTeam() {
     }
 }
 
-function _renderLogs() {
-    for (const container of _getPanelContainers()) {
-        const el = container.querySelector('[data-mgr-list="logs"]');
-        if (!el) continue;
-
-        if (!_mgrLogs.length) {
-            el.innerHTML = '<div class="mgr-empty">אין לוגים עדיין</div>';
-        } else {
-            el.innerHTML = _mgrLogs.map(log => {
-                const toolCount = (log.tools || []).length;
-                const toolLabel = toolCount === 1
-                    ? _esc((log.tools[0] || {}).name || 'פריט')
-                    : `${toolCount} פריטים`;
-                return `
-                    <div class="mgr-log-row">
-                        <div class="mgr-log-main">
-                            <span class="mgr-log-from">${_esc(log.senderName || '—')}</span>
-                            <span class="mgr-log-arrow">→</span>
-                            <span class="mgr-log-to">${_esc(log.recipientName || '—')}</span>
-                        </div>
-                        <div class="mgr-log-meta">
-                            <span class="mgr-log-tools">${toolLabel}</span>
-                            <span class="mgr-log-date">${_fmtDate(log.timestamp)}</span>
-                        </div>
-                    </div>`;
-            }).join('');
-        }
+/* Exported so HomeTab.js can call it after re-rendering the dashboard */
+export function renderRecentLogsInto(el) {
+    if (!el) return;
+    if (!_mgrLogs.length) {
+        el.innerHTML = '<div class="home-logs-empty">אין תנועות ציוד עדיין</div>';
+        return;
     }
+    el.innerHTML = _mgrLogs.map(log => {
+        const toolCount = (log.tools || []).length;
+        const toolLabel = toolCount === 1
+            ? _esc((log.tools[0] || {}).name || 'פריט')
+            : `${toolCount} פריטים`;
+        return `
+            <div class="home-log-row">
+                <div class="home-log-main">
+                    <span class="home-log-from">${_esc(log.senderName || '—')}</span>
+                    <span class="home-log-arrow">→</span>
+                    <span class="home-log-to">${_esc(log.recipientName || '—')}</span>
+                </div>
+                <div class="home-log-meta">
+                    <span class="home-log-tools">${toolLabel}</span>
+                    <span class="home-log-date">${_fmtDate(log.timestamp)}</span>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function _renderLogs() {
+    renderRecentLogsInto(document.getElementById('homeRecentLogs'));
 }
 
 function _buildPanelHTML() {
     return `
         <div class="mgr-panel">
             <div class="mgr-panel-header">
-                <span class="mgr-panel-crown">👑</span>
-                <span class="mgr-panel-title">פאנל ניהול מערכת (שגיא)</span>
-                <span class="mgr-panel-badge">מנהל ראשי</span>
+                <span class="mgr-panel-title">פאנל ניהול מערכת</span>
+                <span class="mgr-panel-badge">מנהל</span>
             </div>
 
             <div class="mgr-section">
@@ -137,15 +138,6 @@ function _buildPanelHTML() {
                     <button class="mgr-refresh-btn" onclick="mgrRefreshTeam()">רענן</button>
                 </div>
                 <div data-mgr-list="team" class="mgr-list">
-                    <div class="mgr-empty">טוען...</div>
-                </div>
-            </div>
-
-            <div class="mgr-section">
-                <div class="mgr-section-header">
-                    <span class="mgr-section-title">תנועות ציוד אחרונות</span>
-                </div>
-                <div data-mgr-list="logs" class="mgr-list">
                     <div class="mgr-empty">טוען...</div>
                 </div>
             </div>
@@ -168,7 +160,7 @@ async function _fetchTeam() {
    PUBLIC API
 ================================================================ */
 export async function setupManagerPanel() {
-    if (_mgrPendingUnsub) return; // already initialised — prevent double listeners
+    if (_mgrPendingUnsub) return;
     console.log('[MGR PANEL] setting up manager panel');
     const panelHtml = _buildPanelHTML();
 
@@ -200,6 +192,8 @@ export function cleanupManagerPanel() {
         container.classList.add('hidden');
         container.innerHTML = '';
     }
+    const homeLogsEl = document.getElementById('homeRecentLogs');
+    if (homeLogsEl) homeLogsEl.innerHTML = '';
 }
 
 /* ================================================================
@@ -213,7 +207,7 @@ window.mgrApprove = async function(docId) {
     });
     try {
         await apiApproveRegistration(docId, req.name, req.email, req.password);
-        toast(`${_esc(req.name)} אושר בהצלחה ✓`, 'success');
+        toast(`${_esc(req.name)} אושר בהצלחה`, 'success');
         await _fetchTeam();
     } catch (e) {
         console.error('[MGR APPROVE]', e);
