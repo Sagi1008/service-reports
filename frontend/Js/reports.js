@@ -848,36 +848,17 @@ export async function downloadPDF(returnBlob = false) {
         });
         document.body.removeChild(wrap);
 
-        // Build a multi-page PDF; scan for white rows near each page boundary
-        // so we never bisect a table row, image, or signature block.
+        // Single continuous page — width = A4 width, height = proportional to content.
+        // No page cuts, no rows split across pages.
         const { jsPDF } = window.jspdf;
-        const pdf     = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-        const pdfW    = pdf.internal.pageSize.getWidth();
-        const pdfH    = pdf.internal.pageSize.getHeight();
-        const pageHpx = Math.round((pdfH / pdfW) * canvas.width);
+        const pdfW = 210; // mm (A4 width)
+        const pdfH = Math.ceil((canvas.height / canvas.width) * pdfW);
 
-        let yOff = 0, pg = 0;
-        while (yOff < canvas.height && pg < 60) {  // 60-page hard cap — safety valve
-            if (pg++ > 0) pdf.addPage();
-            const remaining = canvas.height - yOff;
-            const ideal     = Math.min(pageHpx, remaining);
-            const cutH      = remaining > pageHpx ? _bestPageCut(canvas, yOff, ideal) : ideal;
-            if (cutH <= 0) break;   // guard: never allow zero-height slice
-
-            const slice = document.createElement('canvas');
-            slice.width  = canvas.width;
-            slice.height = cutH;
-            const ctx = slice.getContext('2d');
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(0, 0, canvas.width, cutH);
-            ctx.drawImage(canvas, 0, yOff, canvas.width, cutH, 0, 0, canvas.width, cutH);
-
-            pdf.addImage(
-                slice.toDataURL('image/jpeg', 0.93), 'JPEG',
-                0, 0, pdfW, (cutH / canvas.width) * pdfW
-            );
-            yOff += cutH;
-        }
+        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfW, pdfH] });
+        pdf.addImage(
+            canvas.toDataURL('image/jpeg', 0.93), 'JPEG',
+            0, 0, pdfW, pdfH
+        );
 
         const filename = `${r.title || 'דוח'}.pdf`;
         if (returnBlob) return pdf.output('blob');
@@ -949,15 +930,17 @@ function _buildPrintLayout(r, sigTech, sigCust, imgSrcs) {
     let rowN = 0;
     const taskRows = tasks.map(t => {
         if (t.type === 'section') {
-            return `<tr style="page-break-inside:avoid;"><td colspan="4" style="padding:14px 12px 8px;background:#f1f5f9;
-                border:1px solid #e2e8f0;border-top:3px solid #d1d5db;border-right:4px solid #f59e0b;
+            const secText = esc(t.title || t.description || t.label || '');
+            return `<tr><td colspan="4" style="height:14px;background:#fff;border:none;font-size:0;"></td></tr>
+                <tr><td colspan="4" style="padding:8px 12px;background:#f1f5f9;
+                border:1px solid #e2e8f0;border-right:4px solid #f59e0b;
                 font-weight:700;font-size:12px;color:#334155;">
-                ${esc(t.label || t.title || t.description || '')}</td></tr>`;
+                ${secText}</td></tr>`;
         }
         rowN++;
         const s      = STATUS_MAP[t.status] || STATUS_MAP.pending;
         const rowBg  = rowN % 2 === 0 ? '#f9fafb' : '#ffffff';
-        return `<tr style="background:${rowBg};page-break-inside:avoid;">
+        return `<tr style="background:${rowBg};">
           <td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;
             font-size:11px;color:#94a3b8;">${rowN}</td>
           <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;">
