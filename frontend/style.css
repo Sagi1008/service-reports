@@ -3589,7 +3589,7 @@ select.handover-input {
    DESKTOP TAB NAVIGATION BAR
 ================================================================ */
 .desktop-tab-bar {
-    display: none; /* hidden on mobile */
+    display: none; /* hidden on mobile; shown via media query below */
     align-items: stretch;
     gap: 0;
     background: rgba(7,16,31,0.85);
@@ -3620,43 +3620,43 @@ select.handover-input {
     font-weight: 700;
 }
 
-/* Desktop panel: hidden by default, flex-fill when active */
+/*
+   Desktop panels — JS sets style.display='flex'|'none' directly.
+   Base CSS provides layout properties that activate when display:flex is applied.
+   display:none here is the fallback; mobile always overrides with !important below.
+*/
 .desktop-panel {
-    display: none; /* always hidden on mobile; controlled by JS on desktop */
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+    background: #07101e;
 }
 
 /* Desktop: show manager panel in main area, hide mobile copy */
 @media (min-width: 769px) {
     #managerAdminPanel { display: none !important; }
+    .desktop-tab-bar   { display: flex; }
 
-    .desktop-tab-bar { display: flex; }
-
-    /* Desktop panels fill remaining height and scroll independently */
-    .desktop-panel:not(.hidden) {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        overflow-y: auto;
-        min-height: 0;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    /* Home dashboard inside desktop panel */
+    /* Home dashboard content: centered column, scrolls within panel */
     #desktopHomeDashboard {
-        flex: 1;
-        min-height: 0;
-        max-width: 680px;
+        max-width: 720px;
         margin: 0 auto;
         width: 100%;
+        padding-bottom: 40px;
     }
 
-    /* Equipment panel fills full width */
-    #desktopEquipmentPanel { max-width: 100%; }
-
-    /* Manager panel inside home panel: un-hide when setupManagerPanel runs */
+    /* Manager panel inside desktop home panel */
     #managerAdminPanelDesktop {
-        max-width: 680px;
+        max-width: 720px;
         margin: 24px auto 0;
         width: 100%;
     }
+}
+
+/* Mobile: force desktop panels invisible regardless of inline style */
+@media (max-width: 768px) {
+    .desktop-panel { display: none !important; }
 }

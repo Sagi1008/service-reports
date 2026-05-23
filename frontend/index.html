@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Oficiency – מערכת דו"חות שירות </title>
+    <title>Oficiency – מערכת ניהול ותחזוקה</title>
     <!-- PWA / standalone web app -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.3.9">
+    <link rel="stylesheet" href="style.css?v=1.3.10">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -161,7 +161,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.9</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.10</div>
     </div>
 </aside>
 
@@ -170,7 +170,7 @@ window._showLoginWhenSplashDone = false;
 
     <div class="toolbar">
         <button id="mobileMenuBtn" onclick="toggleMobileSidebar()" title="תפריט">☰</button>
-        <div class="toolbar-title" id="toolbarTitle">מערכת דו"חות שירות</div>
+        <div class="toolbar-title" id="toolbarTitle">מערכת ניהול ותחזוקה</div>
         <div id="toolbarMode"></div>
         <div class="toolbar-actions" id="toolbarActions"></div>
     </div>
@@ -183,13 +183,13 @@ window._showLoginWhenSplashDone = false;
     </nav>
 
     <!-- Desktop: Home panel (manager panel + home dashboard) -->
-    <div id="desktopHomePanel" class="desktop-panel hidden">
+    <div id="desktopHomePanel" class="desktop-panel">
         <div id="managerAdminPanelDesktop" class="hidden"></div>
-        <div id="desktopHomeDashboard" class="home-dashboard"></div>
+        <div id="desktopHomeDashboard"></div>
     </div>
 
     <!-- Desktop: Equipment panel -->
-    <div id="desktopEquipmentPanel" class="desktop-panel hidden"></div>
+    <div id="desktopEquipmentPanel" class="desktop-panel"></div>
 
     <div class="report-area" id="reportArea">
 
@@ -706,7 +706,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.3.9"></script>
-<script type="module" src="Js/app.js?v=1.3.9"></script>
+<script type="module" src="Js/api.js?v=1.3.10"></script>
+<script type="module" src="Js/app.js?v=1.3.10"></script>
 </body>
 </html>

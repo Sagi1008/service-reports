@@ -177,9 +177,10 @@ function switchTab(tab) {
         const dEquipPanel = document.getElementById('desktopEquipmentPanel');
         const reportArea  = document.getElementById('reportArea');
 
-        if (dHomePanel)  dHomePanel.classList.toggle('hidden', tab !== 'home');
-        if (dEquipPanel) dEquipPanel.classList.toggle('hidden', tab !== 'equipment');
-        if (reportArea)  reportArea.style.display = tab === 'reports' ? '' : 'none';
+        // Use inline style so !important on .hidden cannot interfere
+        if (dHomePanel)  dHomePanel.style.display  = tab === 'home'      ? 'flex' : 'none';
+        if (dEquipPanel) dEquipPanel.style.display = tab === 'equipment' ? 'flex' : 'none';
+        if (reportArea)  reportArea.style.display  = tab === 'reports'   ? ''     : 'none';
 
         if (tab === 'home')      renderHomeDashboard();
         if (tab === 'equipment') renderEquipmentTab();
@@ -362,7 +363,7 @@ async function init() {
         const mobileEquip  = document.getElementById('tabEquipment');
         const desktopEquip = document.getElementById('desktopEquipmentPanel');
         const equipVisible = (mobileEquip  && !mobileEquip.classList.contains('hidden'))
-                          || (desktopEquip && !desktopEquip.classList.contains('hidden'));
+                          || (desktopEquip && desktopEquip.style.display === 'flex');
         if (equipVisible) renderEquipmentTab();
         if (!S.currentId) {
             if (S.currentFolder) showFolderContent(S.currentFolder);
