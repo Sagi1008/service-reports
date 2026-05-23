@@ -1233,43 +1233,36 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
 }
 .btn-add-section:hover { background: var(--amber-bg); border-color: var(--amber); }
 
-/* ── Section title divider ── */
+/* ── Section category header ── */
 .section-title-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin: 32px 0 8px;
+    gap: 8px;
+    margin: 24px 0 6px;
+    padding: 9px 14px;
+    background: rgba(245,158,11,0.07);
+    border: 1px solid rgba(245,158,11,0.18);
+    border-right: 4px solid rgba(245,158,11,0.55);
+    border-radius: 0 6px 6px 0;
 }
 .section-title-item::before,
-.section-title-item::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-}
+.section-title-item::after { display: none; }
 
 .section-title-input {
-    padding: 4px 14px;
-    border: 1.5px solid rgba(245,158,11,0.28);
-    border-radius: 20px;
+    flex: 1;
+    padding: 0 4px;
+    border: none;
+    background: transparent;
     font-family: 'Heebo', sans-serif;
-    font-size: 10.5px;
+    font-size: 13px;
     font-weight: 800;
     color: #fcd34d;
-    background: rgba(245,158,11,0.08);
     direction: rtl;
-    text-align: center;
-    min-width: 100px;
-    width: auto;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    transition: border-color .18s;
+    letter-spacing: 0.3px;
+    min-width: 80px;
 }
-.section-title-input:focus {
-    outline: none;
-    border-color: var(--amber);
-    background: rgba(245,158,11,0.12);
-}
+.section-title-input::placeholder { color: rgba(252,211,77,0.35); font-weight: 500; }
+.section-title-input:focus { outline: none; }
 
 .section-del-btn {
     width: 20px; height: 20px;
@@ -2355,11 +2348,14 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
 }
 
 /* Section titles */
-.pdf-export-mode .section-title-input {
-    background: #fffbeb !important; color: #92400e !important; border-color: #fde68a !important;
+.pdf-export-mode .section-title-item {
+    background: #fffbeb !important;
+    border-color: #fde68a !important;
+    border-right-color: #f59e0b !important;
 }
-.pdf-export-mode .section-title-item::before,
-.pdf-export-mode .section-title-item::after { background: #e2e8f0 !important; }
+.pdf-export-mode .section-title-input {
+    color: #92400e !important;
+}
 
 /* Appendix */
 .pdf-export-mode .appendix-editor-block,
