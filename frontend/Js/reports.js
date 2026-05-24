@@ -1,4 +1,4 @@
-import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl } from './api.js';
+import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport } from './api.js';
 import {
     showModal, hideModal, toast,
     setReportMode, renderTasks, renderImages, renderReportAppendices,
@@ -9,11 +9,35 @@ import {
 } from './ui.js';
 
 /* ================================================================
-   LOGO (no longer needed for PDF — kept as no-op for compatibility)
+   LOGO — preload assets/logo.png as a data URL for PDF embedding
 ================================================================ */
+let _logoPromise = null;
+
 export function preloadLogo() {
-    return Promise.resolve();
+    if (!_logoPromise) {
+        _logoPromise = new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    const c = document.createElement('canvas');
+                    c.width  = img.naturalWidth  || 400;
+                    c.height = img.naturalHeight || 150;
+                    c.getContext('2d').drawImage(img, 0, 0);
+                    resolve(c.toDataURL('image/png'));
+                } catch { resolve(null); }
+            };
+            img.onerror = () => resolve(null);
+            img.src = 'assets/logo.png';
+        });
+    }
+    return _logoPromise;
 }
+
+/* ================================================================
+   MODULE STATE
+================================================================ */
+let _importDefaultAs   = 'report'; // pre-selects radio in import preview modal
+let _pendingAssetAction = null;    // { type, id, action: 'move'|'copy' }
 
 /* ================================================================
    AUTH HELPERS
@@ -22,6 +46,63 @@ function _techName() {
     const u = S.currentUser;
     if (!u) return '';
     return u.displayName || u.email?.split('@')[0] || '';
+}
+
+/** Enforces read-only mode on the report editor for non-authorised users.
+ *  Must be called AFTER renderTasks/updateToolbar have populated the DOM. */
+function _applyReadOnlyMode(r) {
+    const editable = canEditReport(r);
+    const area     = document.getElementById('reportArea');
+    if (!area) return;
+
+    // Remove any previous banner
+    area.querySelector('.readonly-banner')?.remove();
+
+    if (editable) {
+        // Re-enable everything in case user switched from a read-only report
+        area.querySelectorAll('input, textarea, select').forEach(el => {
+            el.disabled = false;
+        });
+        area.querySelectorAll('.sbtn, .task-del-btn, .section-del-btn, .image-del-btn, .seg-btn, .btn-add-task, .add-image-btn').forEach(el => {
+            el.disabled = false;
+            el.style.pointerEvents = '';
+            el.style.opacity = '';
+        });
+        if (S.pad)         { try { S.pad.on(); }         catch(e) {} }
+        if (S.customerPad) { try { S.customerPad.on(); } catch(e) {} }
+    } else {
+        // Inject a read-only banner at the top
+        const banner = document.createElement('div');
+        banner.className = 'readonly-banner';
+        banner.style.cssText = [
+            'background:rgba(245,158,11,0.10)',
+            'border:1px solid rgba(245,158,11,0.35)',
+            'border-radius:8px',
+            'padding:9px 14px',
+            'margin-bottom:14px',
+            'font-size:12px',
+            'color:#f59e0b',
+            'font-weight:600',
+            'text-align:center',
+            'letter-spacing:0.2px',
+        ].join(';');
+        banner.textContent = '📋 מצב צפייה בלבד — הדוח שייך לטכנאי אחר ואינו ניתן לעריכה';
+        area.insertBefore(banner, area.firstChild);
+
+        // Disable all form inputs
+        area.querySelectorAll('input, textarea, select').forEach(el => {
+            el.disabled = true;
+        });
+        // Disable interactive buttons (status, delete, add-task, image upload)
+        area.querySelectorAll('.sbtn, .task-del-btn, .section-del-btn, .image-del-btn, .seg-btn, .btn-add-task, .add-image-btn').forEach(el => {
+            el.disabled = true;
+            el.style.pointerEvents = 'none';
+            el.style.opacity = '0.4';
+        });
+        // Lock signature pads
+        if (S.pad)         { try { S.pad.off(); }         catch(e) {} }
+        if (S.customerPad) { try { S.customerPad.off(); } catch(e) {} }
+    }
 }
 
 /* ================================================================
@@ -80,6 +161,9 @@ export async function confirmNewReport() {
         site:        '',
         visitDate:   t,
         number:      '',
+        startTime:   '',
+        endTime:     '',
+        totalHours:  '',
         serviceType: tpl ? (tpl.serviceType || '') : '',
         permComments:  tpl ? (tpl.permComments || '') : '',
         finalComments: '',
@@ -93,6 +177,7 @@ export async function confirmNewReport() {
         tech: { name: _techName(), compDate: t, sig: '' },
         customerSig: '',
         folder:    S.currentFolder || null,
+        createdBy: S.currentUser?.email || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     };
@@ -144,6 +229,9 @@ export function openReport(id) {
     document.getElementById('fSite').value         = r.site         || '';
     document.getElementById('fVisitDate').value    = r.visitDate    || '';
     document.getElementById('fNumber').value       = r.number       || '';
+    document.getElementById('fStartTime').value    = r.startTime    || '';
+    document.getElementById('fEndTime').value      = r.endTime      || '';
+    document.getElementById('fTotalHours').value   = r.totalHours   || '';
     document.getElementById('fPermComments').value  = r.permComments  || '';
     if (window.autoExpand) setTimeout(() => window.autoExpand(document.getElementById('fPermComments')), 0);
     document.getElementById('fFinalComments').value = r.finalComments || '';
@@ -172,6 +260,7 @@ export function openReport(id) {
     updateToolbar();
     renderSidebar();
     document.getElementById('reportArea').scrollTop = 0;
+    _applyReadOnlyMode(r);
 }
 
 export async function saveReport() {
@@ -180,6 +269,11 @@ export async function saveReport() {
     if (!savedId || S.currentMode !== 'report') return;
     const r = S.reports[savedId];
     if (!r) { toast('הדוח לא נמצא בזיכרון – רענן את הדף', 'error'); return; }
+
+    if (!canEditReport(r)) {
+        toast('אין הרשאה — הדוח שייך לטכנאי אחר', 'error');
+        return;
+    }
 
     const overlay    = document.getElementById('loadingOverlay');
     const overlayMsg = document.getElementById('loadingMsg');
@@ -194,6 +288,9 @@ export async function saveReport() {
         r.site          = document.getElementById('fSite')?.value                 ?? r.site;
         r.visitDate     = document.getElementById('fVisitDate')?.value            ?? r.visitDate;
         r.number        = document.getElementById('fNumber')?.value               ?? r.number;
+        r.startTime     = document.getElementById('fStartTime')?.value            ?? r.startTime    ?? '';
+        r.endTime       = document.getElementById('fEndTime')?.value              ?? r.endTime      ?? '';
+        r.totalHours    = document.getElementById('fTotalHours')?.value           ?? r.totalHours   ?? '';
         r.serviceType   = document.getElementById('fServiceType')?.value          || r.serviceType  || '';
         r.permComments  = document.getElementById('fPermComments')?.value         ?? r.permComments;
         r.finalComments = document.getElementById('fFinalComments')?.value        ?? r.finalComments;
@@ -361,7 +458,8 @@ export function saveTplEditor() {
     persist();
     renderSidebar();
     document.getElementById('tplEditorPage').style.display = 'none';
-    showDashboard();
+    if (S.currentFolder) showFolderContent(S.currentFolder);
+    else showDashboard();
     toast(`תבנית "${name}" נשמרה ✓`, 'success');
 }
 
@@ -389,6 +487,9 @@ export async function createReportFromTemplate(tplId, folderName = null) {
         site:         '',
         visitDate:    t,
         number:       '',
+        startTime:    '',
+        endTime:      '',
+        totalHours:   '',
         serviceType:  tpl.serviceType || '',
         permComments: tpl.permComments || '',
         tasks: tpl.tasks.map(tk => tk.type === 'section'
@@ -406,6 +507,7 @@ export async function createReportFromTemplate(tplId, folderName = null) {
         images: [],
         tech: { name: _techName(), compDate: t, sig: '' },
         folder:    targetFolder,
+        createdBy: S.currentUser?.email || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     };
@@ -473,6 +575,7 @@ function _markDeleted(frontendId) {
    FOLDERS
 ================================================================ */
 export function createFolder() {
+    if (!isAdmin()) { toast('רק מנהל מערכת יכול ליצור תיקיות', 'error'); return; }
     const name = document.getElementById('newFolderName').value.trim();
     if (!name) { toast('אנא הכנס שם', 'error'); return; }
     if (S.folders[name]) { toast('תיקייה עם שם זה קיימת', 'error'); return; }
@@ -517,6 +620,7 @@ export function moveToFolder(name) {
 }
 
 export function renameFolderPrompt(name) {
+    if (!isAdmin()) { toast('רק מנהל מערכת יכול לשנות שם תיקייה', 'error'); return; }
     S.pendingRenameFolder = name;
     document.getElementById('renameFolderInput').value = name;
     showModal('renameFolderModal');
@@ -538,6 +642,7 @@ export function confirmRenameFolder() {
 }
 
 export function deleteFolderPrompt(name) {
+    if (!isAdmin()) { toast('רק מנהל מערכת יכול למחוק תיקיות', 'error'); return; }
     const hasReports   = (S.folders[name] || []).some(id => S.reports[id]);
     const hasTemplates = Object.values(S.templates).some(t => t.folder === name);
     const hasProcs     = ((S.procedures || {})[name] || []).length > 0;
@@ -714,7 +819,9 @@ export function showImportPreview(name, tasks, type) {
             ${t.comments ? `<span style="color:var(--slate-400);font-size:11px;margin-right:auto;">${esc(t.comments)}</span>` : ''}
         </div>`
     ).join('');
-    document.querySelector('input[name="importAs"][value="report"]').checked = true;
+    const asWhat = _importDefaultAs;
+    _importDefaultAs = 'report'; // reset for next time
+    document.querySelector(`input[name="importAs"][value="${asWhat}"]`).checked = true;
     showModal('importPreviewModal');
 }
 
@@ -728,6 +835,7 @@ export async function confirmImport() {
         const id = uid();
         S.templates[id] = {
             id, name,
+            folder: S.currentFolder || null,
             permComments: '',
             tasks: tasks.map(t => ({ description: t.description, comments: t.comments || '' })),
             createdAt: new Date().toISOString(),
@@ -737,6 +845,7 @@ export async function confirmImport() {
         renderSidebar();
         hideModal('importPreviewModal');
         toast(`תבנית "${name}" נשמרה ✓`, 'success');
+        if (S.currentFolder) showFolderContent(S.currentFolder);
     } else {
         const id  = uid();
         const t   = today();
@@ -829,7 +938,9 @@ export async function downloadPDF(returnBlob = false) {
     try {
         // Pre-convert Firebase Storage https:// URLs → data: URLs so
         // html2canvas can draw them without cross-origin restrictions.
-        const [sigTech, sigCust, ...imgSrcs] = await Promise.all([
+        // Logo is loaded in parallel so it's ready when _buildPrintLayout runs.
+        const [logoDataUrl, sigTech, sigCust, ...imgSrcs] = await Promise.all([
+            preloadLogo(),
             _fetchDataUrl(r.tech?.sig),
             _fetchDataUrl(r.customerSig),
             ...(r.images || []).filter(Boolean).map(_fetchDataUrl),
@@ -842,7 +953,7 @@ export async function downloadPDF(returnBlob = false) {
         const wrap = document.createElement('div');
         wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;' +
                              'font-family:Heebo,Arial,sans-serif;background:#fff;';
-        wrap.innerHTML = _buildPrintLayout(r, sigTech, sigCust, imgSrcs);
+        wrap.innerHTML = _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs);
         document.body.appendChild(wrap);
 
         // Wait for every <img> to fully decode before html2canvas captures the DOM.
@@ -934,7 +1045,7 @@ function _bestPageCut(canvas, startY, pageH) {
 
 /** Build a self-contained A4 HTML string that html2canvas will render.
  *  All text is dir=rtl; Heebo font; no external stylesheet dependencies. */
-function _buildPrintLayout(r, sigTech, sigCust, imgSrcs) {
+function _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
     const tasks     = r.tasks || [];
     const realTasks = tasks.filter(t => t.type !== 'section');
     const nPerf  = realTasks.filter(t => t.status === 'performed').length;
@@ -987,6 +1098,9 @@ function _buildPrintLayout(r, sigTech, sigCust, imgSrcs) {
         ['אתר',         r.site],
         ['טכנאי',       r.tech?.name],
         ['תאריך ביקור', fmtDate(r.visitDate)],
+        ['שעת התחלה',   r.startTime],
+        ['שעת סיום',    r.endTime],
+        ['שעות עבודה',  r.totalHours],
     ].filter(([, v]) => v);
 
     const imagesHtml = imgSrcs.filter(Boolean).length ? `
@@ -1018,15 +1132,21 @@ function _buildPrintLayout(r, sigTech, sigCust, imgSrcs) {
       color:#1a1a2e;background:#fff;box-sizing:border-box;">
 
       <!-- HEADER -->
-      <div style="background:#1a2640;color:#fff;padding:22px 36px;
-        display:flex;justify-content:space-between;align-items:center;">
+      <div style="background:#ffffff;color:#1a2640;padding:22px 36px;
+        display:flex;justify-content:space-between;align-items:center;
+        border-bottom:2px solid #e2e8f0;">
         <div>
-          <div style="font-size:26px;font-weight:800;letter-spacing:-.5px;">Oficiency</div>
-          <div style="font-size:10px;opacity:.6;margin-top:2px;">מערכת דוחות שירות</div>
+          ${logoDataUrl
+            ? `<div style="margin-bottom:4px;">
+                 <img src="${logoDataUrl}" style="height:42px;object-fit:contain;display:block;filter:none;">
+               </div>`
+            : `<div style="font-size:26px;font-weight:800;letter-spacing:-.5px;color:#1a2640;">Oficiency</div>`
+          }
+          <div style="font-size:10px;color:#64748b;margin-top:2px;font-weight:500;">מערכת דוחות שירות</div>
         </div>
         <div style="text-align:left;">
-          <div style="font-size:9px;opacity:.6;margin-bottom:2px;">מספר דוח</div>
-          <div style="font-size:16px;font-weight:700;">${docNum}</div>
+          <div style="font-size:9px;color:#64748b;font-weight:600;margin-bottom:2px;">מספר דוח</div>
+          <div style="font-size:16px;font-weight:700;color:#1a2640;">${docNum}</div>
         </div>
       </div>
 
@@ -1122,6 +1242,140 @@ function _buildPrintLayout(r, sigTech, sigCust, imgSrcs) {
       </div>
 
     </div>`;
+}
+
+/* ================================================================
+   ASSET MOVE / COPY
+================================================================ */
+export function showAssetMoveModal(type, id, action) {
+    const names = Object.keys(S.folders);
+    if (!names.length) { toast('אין תיקיות. צור תיקייה קודם.', 'error'); return; }
+
+    _pendingAssetAction = { type, id, action };
+
+    const titleEl = document.getElementById('assetMoveTitle');
+    if (titleEl) titleEl.textContent = action === 'move' ? '📁 העבר לתיקייה' : '📁 העתק לתיקייה';
+
+    let currentFolder = null;
+    if (type === 'report') {
+        for (const fn in S.folders) {
+            if ((S.folders[fn] || []).includes(id)) { currentFolder = fn; break; }
+        }
+    } else if (type === 'template') {
+        currentFolder = S.templates[id]?.folder || null;
+    }
+
+    const list = document.getElementById('assetMoveList');
+    if (list) {
+        list.innerHTML = names.map(name => `
+            <div class="folder-opt ${name === currentFolder ? 'selected' : ''}"
+                 onclick="executeAssetAction('${esc(name)}')">
+                ${esc(name)}
+            </div>`).join('');
+    }
+    showModal('assetMoveModal');
+}
+
+export function executeAssetAction(toFolder) {
+    const pending = _pendingAssetAction;
+    if (!pending) return;
+    _pendingAssetAction = null;
+    hideModal('assetMoveModal');
+    if (pending.action === 'move') _moveAsset(pending.type, pending.id, toFolder);
+    else                           _copyAsset(pending.type, pending.id, toFolder);
+}
+
+function _moveAsset(type, id, toFolder) {
+    if (type === 'report') {
+        for (const fn in S.folders) {
+            S.folders[fn] = S.folders[fn].filter(x => x !== id);
+        }
+        if (!S.folders[toFolder]) S.folders[toFolder] = [];
+        S.folders[toFolder].push(id);
+        if (S.reports[id]) S.reports[id].folder = toFolder;
+        persist();
+        renderSidebar();
+        if (S.currentFolder) showFolderContent(S.currentFolder);
+        else showDashboard();
+        toast(`הדוח הועבר לתיקייה "${toFolder}"`, 'success');
+    } else if (type === 'template') {
+        if (!S.templates[id]) return;
+        S.templates[id].folder = toFolder;
+        persist();
+        renderSidebar();
+        if (S.currentFolder) showFolderContent(S.currentFolder);
+        else showDashboard();
+        toast(`התבנית הועברה לתיקייה "${toFolder}"`, 'success');
+    }
+}
+
+async function _copyAsset(type, id, toFolder) {
+    if (type === 'report') {
+        const orig = S.reports[id];
+        if (!orig) return;
+        const newId = uid();
+        const now   = new Date().toISOString();
+        S.reports[newId] = { ...orig, id: newId, folder: toFolder, createdAt: now, updatedAt: now };
+        delete S.reports[newId]._backendId;
+        if (!S.folders[toFolder]) S.folders[toFolder] = [];
+        S.folders[toFolder].push(newId);
+        persist();
+        renderSidebar();
+        if (S.currentFolder) showFolderContent(S.currentFolder);
+        else showDashboard();
+        toast(`הדוח הועתק לתיקייה "${toFolder}"`, 'success');
+        try {
+            const saved = await apiSaveReport(S.reports[newId]);
+            S.reports[newId]._backendId = saved.id;
+        } catch (e) {
+            toast('הדוח הועתק אך לא נשמר בשרת – נסה לשמור שוב', 'error');
+        }
+    } else if (type === 'template') {
+        const orig = S.templates[id];
+        if (!orig) return;
+        const newId = uid();
+        const now   = new Date().toISOString();
+        S.templates[newId] = { ...orig, id: newId, folder: toFolder, createdAt: now, updatedAt: now };
+        persist();
+        renderSidebar();
+        if (S.currentFolder) showFolderContent(S.currentFolder);
+        else showDashboard();
+        toast(`התבנית הועתקה לתיקייה "${toFolder}"`, 'success');
+    }
+}
+
+/* ================================================================
+   IMPORT AS TEMPLATE (from folder templates tab)
+================================================================ */
+export function importAsTemplate(folderName) {
+    const input = document.createElement('input');
+    input.type   = 'file';
+    input.accept = '.xlsx,.xls,.docx,.doc';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.onchange = (e) => {
+        try { document.body.removeChild(input); } catch {}
+        const file = e.target.files[0];
+        if (!file) return;
+        _importDefaultAs = 'template';
+        const ext  = file.name.split('.').pop().toLowerCase();
+        const name = file.name.replace(/\.[^.]+$/, '');
+        if (['xlsx', 'xls'].includes(ext)) {
+            const fr = new FileReader();
+            fr.onload = ev => importExcel(ev.target.result, name);
+            fr.readAsArrayBuffer(file);
+        } else if (['docx', 'doc'].includes(ext)) {
+            const fr = new FileReader();
+            fr.onload = ev => importWord(ev.target.result, name);
+            fr.readAsArrayBuffer(file);
+        } else {
+            _importDefaultAs = 'report';
+            toast('סוג קובץ לא נתמך', 'error');
+        }
+    };
+    input.oncancel = () => { try { document.body.removeChild(input); } catch {} };
+    input.click();
 }
 
 /* ================================================================

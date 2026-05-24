@@ -1,7 +1,7 @@
 import { S, esc, fmtDate } from '../api.js';
 import { renderRecentLogsInto } from './ManagerPanel.js';
 
-const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com', 'maor.menachem@oficiency.com'];
+const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com'];
 
 /* ================================================================
    HOME DASHBOARD

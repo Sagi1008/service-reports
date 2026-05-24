@@ -1,4 +1,4 @@
-import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure } from './api.js';
+import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport } from './api.js';
 
 /* ================================================================
    SIGNATURE PAD
@@ -66,7 +66,7 @@ export function setTodayDates() {
    REPORT MODE
 ================================================================ */
 /* ── shared card renderer ─────────────────────────────────── */
-function _buildReportCards(reports) {
+function _buildReportCards(reports, showActions = false) {
     const statusLabel = { pending: 'ממתין', in_progress: 'בתהליך', completed: 'הושלם' };
     const statusClass = { pending: 'dash-status-pending', in_progress: 'dash-status-progress', completed: 'dash-status-done' };
     return reports.map(r => {
@@ -76,9 +76,25 @@ function _buildReportCards(reports) {
                      : done === tasks.length ? 'completed'
                      : done > 0              ? 'in_progress'
                      :                         'pending';
+        const safeId    = esc(r.id);
+        const safeTitle = esc(r.title || 'ללא שם');
+        const actionsHtml = showActions ? `
+            <div class="card-actions-desktop" style="display:flex;gap:6px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);">
+                <button class="dash-card-action-btn" onclick="event.stopPropagation();showAssetMoveModal('report','${safeId}','move')">העבר</button>
+                <button class="dash-card-action-btn" onclick="event.stopPropagation();showAssetMoveModal('report','${safeId}','copy')">העתק</button>
+            </div>
+            <div class="mobile-dots-wrap" onclick="event.stopPropagation()">
+                <select class="mobile-dots-select" onchange="handleReportSelect(this,'${safeId}')">
+                    <option value="">⋮</option>
+                    <option value="open">פתח דוח</option>
+                    <option value="move">העבר</option>
+                    <option value="copy">העתק</option>
+                    <option value="delete">מחק</option>
+                </select>
+            </div>` : '';
         return `
-            <div class="dash-card" onclick="openReport('${esc(r.id)}')">
-                <button class="dash-card-delete" title="מחק דוח" onclick="event.stopPropagation();if(confirm('למחוק את הדוח &quot;${esc(r.title||'ללא שם')}&quot;?')){deleteReportById('${esc(r.id)}')}">✕</button>
+            <div class="dash-card" onclick="openReport('${safeId}')">
+                <button class="dash-card-delete card-actions-desktop" title="מחק דוח" onclick="event.stopPropagation();if(confirm('למחוק את הדוח &quot;${safeTitle}&quot;?')){deleteReportById('${safeId}')}">✕</button>
                 <div class="dash-card-title">${esc(r.title || 'ללא שם')}</div>
                 ${r.customer  ? `<div class="dash-card-meta">👤 ${esc(r.customer)}</div>`      : ''}
                 ${r.site      ? `<div class="dash-card-meta">📍 ${esc(r.site)}</div>`          : ''}
@@ -87,6 +103,7 @@ function _buildReportCards(reports) {
                     <span class="dash-card-tasks">${tasks.length} משימות · ${done} בוצעו</span>
                     <span class="dash-status ${statusClass[status]}">${statusLabel[status]}</span>
                 </div>
+                ${actionsHtml}
             </div>`;
     }).join('');
 }
@@ -135,6 +152,9 @@ function _showContentView() {
     if (tplPage) tplPage.style.display = 'none';
     updateToolbar();
     renderSidebar();
+    // Restore FAB on mobile when returning to list view
+    const fab = document.getElementById('mobileFab');
+    if (fab && window.innerWidth <= 768) fab.classList.add('fab-visible');
 }
 
 function _buildFolderCards(folderNames) {
@@ -162,7 +182,7 @@ export function showDashboard() {
     let html = `
         <div class="dash-header">
             <h2 class="dash-title">תיקיות</h2>
-            <button class="dash-new-folder-btn" onclick="showModal('createFolderModal')">+ תיקייה חדשה</button>
+            ${isAdmin() ? `<button class="dash-new-folder-btn" onclick="showModal('createFolderModal')">+ תיקייה חדשה</button>` : ''}
         </div>`;
 
     if (folderNames.length) {
@@ -246,16 +266,15 @@ export async function showFolderContent(folderName) {
                 <p>תיקייה זו ריקה. צור דוח חדש או הזז דוח קיים לכאן.</p>
             </div>`;
     } else {
-        if (reports.length) historyHtml += `<div class="dash-grid">${_buildReportCards(reports)}</div>`;
+        if (reports.length) historyHtml += `<div class="dash-grid">${_buildReportCards(reports, true)}</div>`;
         if (docs.length)    historyHtml += `
             <div class="dash-section-label" style="margin-top:${reports.length ? '28px' : '0'}">מסמכים</div>
             <div class="dash-grid">${_buildDocCards(docs)}</div>`;
     }
 
-    // ── Templates tab content (folder-specific + global/unlinked) ───
+    // ── Templates tab content (folder-scoped only) ───────────────
     const safeFolderName = esc(folderName);
     const folderTpls = Object.values(S.templates).filter(t => t.folder === folderName);
-    const globalTpls = Object.values(S.templates).filter(t => !t.folder);
 
     function _tplCard(t) {
         const safeId = esc(t.id);
@@ -268,7 +287,8 @@ export async function showFolderContent(folderName) {
                     <div class="site-tpl-name">${esc(t.name)}</div>
                     <div class="site-tpl-meta">${t.tasks?.length || 0} משימות</div>
                 </div>
-                <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+                <!-- Desktop action buttons (hidden on mobile) -->
+                <div class="card-actions-desktop" style="display:flex;gap:6px;flex-shrink:0;align-items:center">
                     <button class="site-tpl-btn"
                         onclick="createReportFromTemplate('${safeId}','${safeFolderName}')">
                         + דוח
@@ -277,36 +297,53 @@ export async function showFolderContent(folderName) {
                         onclick="showTemplateEditor('${safeId}','${safeFolderName}')">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
+                    <button class="site-tpl-btn" title="העבר תבנית"
+                        onclick="showAssetMoveModal('template','${safeId}','move')">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                    </button>
+                    <button class="site-tpl-btn" title="העתק תבנית"
+                        onclick="showAssetMoveModal('template','${safeId}','copy')">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
                     <button class="site-tpl-btn site-tpl-btn-del"
                         onclick="deleteTemplatePrompt('${safeId}')" title="מחק תבנית">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     </button>
                 </div>
+                <!-- Mobile three-dots menu (hidden on desktop) -->
+                <div class="mobile-dots-wrap">
+                    <select class="mobile-dots-select" onchange="handleTplSelect(this,'${safeId}','${safeFolderName}')">
+                        <option value="">⋮</option>
+                        <option value="newReport">+ דוח</option>
+                        <option value="edit">עריכה</option>
+                        <option value="move">העבר</option>
+                        <option value="copy">העתק</option>
+                        <option value="delete">מחק</option>
+                    </select>
+                </div>
             </div>`;
     }
 
     const newTplBtn = `
-        <button class="dash-new-folder-btn" style="margin-bottom:16px"
-                onclick="showTemplateEditor(null,'${safeFolderName}')">
-            + תבנית חדשה
-        </button>`;
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <button class="dash-new-folder-btn" style="flex:1"
+                    onclick="showTemplateEditor(null,'${safeFolderName}')">
+                + תבנית חדשה
+            </button>
+            <button class="dash-new-folder-btn" style="white-space:nowrap;padding:7px 16px;"
+                    onclick="importAsTemplate('${safeFolderName}')">
+                ייבוא
+            </button>
+        </div>`;
 
     let templatesHtml = newTplBtn;
-    const hasAny = folderTpls.length || globalTpls.length;
-    if (!hasAny) {
+    if (!folderTpls.length) {
         templatesHtml += `
             <div class="dash-empty">
                 <p>אין תבניות עדיין. לחץ "+ תבנית חדשה" ליצירה.</p>
             </div>`;
     } else {
-        if (folderTpls.length) {
-            templatesHtml += `<div class="site-tpl-list">${folderTpls.map(_tplCard).join('')}</div>`;
-        }
-        if (globalTpls.length) {
-            templatesHtml += `
-                <div class="dash-section-label" style="margin-top:${folderTpls.length ? '24px' : '0'}">תבניות כלליות</div>
-                <div class="site-tpl-list">${globalTpls.map(_tplCard).join('')}</div>`;
-        }
+        templatesHtml += `<div class="site-tpl-list">${folderTpls.map(_tplCard).join('')}</div>`;
     }
 
     // ── Procedures tab content ────────────────────────────────────
@@ -322,6 +359,7 @@ export async function showFolderContent(folderName) {
             </button>
             <h2 class="site-title">${esc(folderName)}</h2>
             ${totalReports ? `<span class="dash-count">${totalReports}</span>` : ''}
+            ${isAdmin() ? `
             <div class="folder-menu-wrap">
                 <button class="folder-menu-btn" onclick="toggleFolderMenu(event)" title="אפשרויות">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
@@ -336,7 +374,7 @@ export async function showFolderContent(folderName) {
                         מחק תיקייה
                     </button>
                 </div>
-            </div>
+            </div>` : ''}
         </div>
 
         <div class="site-tabs" role="tablist">
@@ -352,8 +390,12 @@ export async function showFolderContent(folderName) {
 
 /* ── Procedures helpers ──────────────────────────────────────────── */
 function _buildProceduresPanel(folderName) {
+    // Deduplicate by Firestore id — guards against the race where the
+    // onSnapshot listener (persistent local cache) fires before addDoc
+    // resolves, causing the same document to appear twice in S.procedures.
+    const _seen = new Set();
     const procs = (S.procedures[folderName] || [])
-        .slice()
+        .filter(p => { if (!p.id || _seen.has(p.id)) return false; _seen.add(p.id); return true; })
         .sort((a, b) => (b.uploaded_at || '').localeCompare(a.uploaded_at || ''));
     const safeName = esc(folderName);
 
@@ -373,21 +415,26 @@ function _buildProceduresPanel(folderName) {
             procs.map(p => {
                 const icon   = fileIcon(p.file_type);
                 const safeId = esc(p.id || '');
-                const safeUrl = esc(p.file_path || '');
+                const rawUrl = p.file_path || '';
+                const ext    = (p.filename || '').split('.').pop().toLowerCase();
+                const viewUrl = ['xlsx', 'xls', 'docx', 'doc'].includes(ext)
+                    ? 'https://docs.google.com/viewer?url=' + encodeURIComponent(rawUrl) + '&embedded=true'
+                    : rawUrl;
                 return `
-                    <div class="site-tpl-card proc-card">
-                        <div class="proc-file-icon" onclick="window.open('${safeUrl}','_blank')">${icon}</div>
-                        <div class="site-tpl-info proc-info" onclick="window.open('${safeUrl}','_blank')">
+                    <a href="${esc(viewUrl)}" target="_blank" rel="noopener noreferrer"
+                       class="site-tpl-card proc-card">
+                        <div class="proc-file-icon">${icon}</div>
+                        <div class="site-tpl-info proc-info">
                             <div class="site-tpl-name">${esc(p.filename)}</div>
                             <div class="site-tpl-meta">${formatFileSize(p.file_size || 0)} · ${fmtDate(p.uploaded_at)}</div>
                         </div>
                         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
                             <button class="site-tpl-btn site-tpl-btn-del"
-                                onclick="deleteProcedure('${safeId}','${safeName}')" title="מחק">
+                                onclick="event.preventDefault();event.stopPropagation();deleteProcedure('${safeId}','${safeName}')" title="מחק">
                                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                             </button>
                         </div>
-                    </div>`;
+                    </a>`;
             }).join('') +
             `</div>`;
     }
@@ -418,9 +465,11 @@ export async function uploadProcedure(folderName) {
             }
 
             try {
-                const proc = await apiUploadProcedure(file, folderName);
-                if (!S.procedures[folderName]) S.procedures[folderName] = [];
-                S.procedures[folderName].unshift(proc);
+                await apiUploadProcedure(file, folderName);
+                // Don't manually push to S.procedures — Firestore's onSnapshot listener
+                // (via persistentLocalCache) fires before addDoc resolves and already
+                // adds the new doc to S.procedures. A manual unshift here would duplicate it.
+                // _buildProceduresPanel also deduplicates by id as a safety net.
                 if (panel) panel.innerHTML = _buildProceduresPanel(folderName);
                 toast('הנוהל הועלה בהצלחה ✓', 'success');
             } catch (err) {
@@ -483,6 +532,12 @@ export function renderTasks(tasks) {
         }
     });
     updateTaskCount();
+    // Auto-expand all task description textareas after DOM settles
+    setTimeout(() => {
+        document.querySelectorAll('#tasksList .task-desc').forEach(ta => {
+            if (window.autoExpand) window.autoExpand(ta);
+        });
+    }, 30);
 }
 
 export function addTask() {
@@ -492,7 +547,10 @@ export function addTask() {
     updateTaskCount();
     setTimeout(() => {
         const last = document.querySelector('#tasksList .task-item:last-child .task-desc');
-        if (last) last.focus();
+        if (last) {
+            if (window.autoExpand) window.autoExpand(last);
+            last.focus();
+        }
     }, 40);
 }
 
@@ -540,7 +598,7 @@ export function appendTask(t, num) {
         <div class="task-row">
             <div class="drag-handle" title="גרור לשינוי סדר">⋮⋮</div>
             <span class="task-num">${num}</span>
-            <input type="text" class="task-desc" value="${esc(t.description)}" placeholder="תיאור המשימה..." oninput="markUnsaved()">
+            <textarea class="task-desc" rows="1" placeholder="תיאור המשימה..." oninput="markUnsaved();if(window.autoExpand)window.autoExpand(this)">${esc(t.description)}</textarea>
             <div class="status-btns" style="${isReport ? '' : 'display:none'}">
                 <button class="sbtn sbtn-yes ${t.status==='performed'?'active':''}" onclick="setStatus(this,'performed')">✓ תקין</button>
                 <button class="sbtn sbtn-no  ${t.status==='not_performed'?'active':''}" onclick="setStatus(this,'not_performed')">✗ לא תקין</button>
@@ -886,12 +944,13 @@ export function renderSidebar() {
                 <span class="folder-name" onclick="event.stopPropagation();navToFolder('${esc(name)}')">${esc(name)}</span>
                 <span class="folder-badge">${ids.length}</span>
                 <div class="folder-btns" onclick="event.stopPropagation()">
+                    ${isAdmin() ? `
                     <button class="fbn" title="שנה שם" onclick="renameFolderPrompt('${esc(name)}')">
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
                     <button class="fbn" title="מחק" onclick="deleteFolderPrompt('${esc(name)}')">
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    </button>
+                    </button>` : ''}
                 </div>
                 <span class="folder-chevron">▶</span>
             </div>
@@ -927,39 +986,8 @@ export function renderSidebar() {
         });
     }
 
-    // ── Templates section ──
-    const tplIds = Object.keys(S.templates);
-    if (tplIds.length) {
-        const hr = document.createElement('hr');
-        hr.className = 'sb-divider';
-        c.appendChild(hr);
-
-        const lbl = document.createElement('div');
-        lbl.className = 'sb-label templates-header';
-        lbl.textContent = 'תבניות';
-        c.appendChild(lbl);
-
-        tplIds.forEach(id => {
-            const t   = S.templates[id];
-            const d   = document.createElement('div');
-            d.className = 'row-item';
-            d.innerHTML = `<span class="row-name">${esc(t.name)}</span>
-                           <span style="font-size:10px;color:#3d506b;flex-shrink:0;">${t.tasks.length}</span>
-                           <div class="rbtns" onclick="event.stopPropagation()">
-                               <button class="rbn" title="עריכה" onclick="showTemplateEditor('${id}')">
-                                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                               </button>
-                               <button class="rbn" title="מחק" onclick="deleteTemplatePrompt('${id}')">
-                                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                               </button>
-                           </div>`;
-            d.onclick = () => window.createReportFromTemplate(id);
-            c.appendChild(d);
-        });
-    }
-
     // Empty state
-    if (!Object.keys(S.folders).length && !unfiled.length && !tplIds.length) {
+    if (!Object.keys(S.folders).length && !unfiled.length) {
         c.innerHTML = '<div style="padding:18px 10px;font-size:12px;color:#3d506b;text-align:center;line-height:1.7;">עדיין אין דוחות.<br>לחץ <strong style="color:#60a5fa;">"+ דוח חדש"</strong> להתחלה.</div>';
     }
 }
@@ -981,20 +1009,55 @@ export function updateToolbar() {
         return;
     }
 
-    const r   = S.reports[S.currentId];
-    const dot = S.unsaved ? '<span class="unsaved-dot"></span>' : '';
+    // Hide FAB while a report is open on mobile
+    const fab = document.getElementById('mobileFab');
+    if (fab && window.innerWidth <= 768) fab.classList.remove('fab-visible');
+
+    const r       = S.reports[S.currentId];
+    const dot     = S.unsaved ? '<span class="unsaved-dot"></span>' : '';
+    const editable = canEditReport(r);
     title.innerHTML = dot + esc(r?.title || 'דוח');
     mode.innerHTML  = '';
 
-    actions.innerHTML = `
-        <button class="tbtn tbtn-save"     onclick="saveReport()">שמור</button>
-        <button class="tbtn tbtn-pdf"      onclick="downloadPDF()">PDF</button>
-        <button class="tbtn tbtn-share"    onclick="showShareModal()">שתף</button>
-        <button class="tbtn tbtn-template" onclick="showSaveAsTemplate()">שמור כתבנית</button>
-        <button class="tbtn tbtn-folder"   onclick="showMoveFolderModal()">תיקייה</button>
-        <button class="tbtn tbtn-clear"    onclick="clearReport()">נקה</button>
-        <button class="tbtn tbtn-delete"   onclick="deleteReportPrompt()">✕ מחק</button>
-    `;
+    if (editable) {
+        actions.innerHTML = `
+            <div class="card-actions-desktop" style="display:flex;gap:5px;align-items:center;">
+                <button class="tbtn tbtn-save"     onclick="saveReport()">שמור</button>
+                <button class="tbtn tbtn-pdf"      onclick="downloadPDF()">PDF</button>
+                <button class="tbtn tbtn-share"    onclick="showShareModal()">שתף</button>
+                <button class="tbtn tbtn-template" onclick="showSaveAsTemplate()">שמור כתבנית</button>
+                <button class="tbtn tbtn-folder"   onclick="showMoveFolderModal()">תיקייה</button>
+                <button class="tbtn tbtn-clear"    onclick="clearReport()">נקה</button>
+                <button class="tbtn tbtn-delete"   onclick="deleteReportPrompt()">✕ מחק</button>
+            </div>
+            <div class="mobile-dots-wrap" style="flex-shrink:0;">
+                <select class="mobile-dots-select" onchange="handleToolbarSelect(this)">
+                    <option value="">⋮</option>
+                    <option value="save">שמור</option>
+                    <option value="pdf">PDF</option>
+                    <option value="share">שתף</option>
+                    <option value="template">שמור כתבנית</option>
+                    <option value="folder">תיקייה</option>
+                    <option value="clear">נקה</option>
+                    <option value="delete">✕ מחק</option>
+                </select>
+            </div>`;
+    } else {
+        // Read-only: viewer can export/share but not modify
+        actions.innerHTML = `
+            <div class="card-actions-desktop" style="display:flex;gap:5px;align-items:center;">
+                <span style="font-size:11px;color:var(--amber);font-weight:700;padding:0 6px;white-space:nowrap;">📋 צפייה בלבד</span>
+                <button class="tbtn tbtn-pdf"   onclick="downloadPDF()">PDF</button>
+                <button class="tbtn tbtn-share" onclick="showShareModal()">שתף</button>
+            </div>
+            <div class="mobile-dots-wrap" style="flex-shrink:0;">
+                <select class="mobile-dots-select" onchange="handleToolbarSelect(this)">
+                    <option value="">⋮</option>
+                    <option value="pdf">PDF</option>
+                    <option value="share">שתף</option>
+                </select>
+            </div>`;
+    }
 }
 
 /* ================================================================

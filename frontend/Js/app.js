@@ -1,4 +1,4 @@
-import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest } from './api.js';
+import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest, apiCheckUserApproval, apiSubscribeUserStatus } from './api.js';
 import {
     initPad, setTodayDates, markUnsaved,
     showModal, hideModal, toast,
@@ -25,6 +25,7 @@ import {
     deleteFolderPrompt, confirmDeleteFolder,
     importFile, confirmImport, onDocumentFilePicked, confirmDocumentUpload,
     exportJSON, downloadPDF, showShareModal, shareTo,
+    showAssetMoveModal, executeAssetAction, importAsTemplate,
 } from './reports.js';
 import { renderHomeDashboard } from './components/HomeTab.js';
 import { renderEquipmentTab } from './components/EquipmentTab.js';
@@ -32,7 +33,6 @@ import { setupManagerPanel, cleanupManagerPanel } from './components/ManagerPane
 import { ADMIN_EMAIL, setupAdminPanel, cleanupAdminPanel } from './components/AdminPanel.js';
 
 const MANAGER_EMAIL  = 'sagi.tisson@oficiency.com';
-const MANAGER_EMAIL2 = 'maor.menachem@oficiency.com'; // backup manager
 
 /* ================================================================
    EXPOSE ALL FUNCTIONS GLOBALLY
@@ -148,11 +148,74 @@ window.autoExpand = function(el) {
 window.closeTplEditor = function() {
     const page = document.getElementById('tplEditorPage');
     if (page) page.style.display = 'none';
-    showDashboard();
+    if (S.currentFolder) showFolderContent(S.currentFolder);
+    else showDashboard();
 };
 
 window.openImportAssociationModal = openImportAssociationModal;
 window.deleteAttachment           = deleteAttachment;
+
+// Asset move / copy
+window.showAssetMoveModal = showAssetMoveModal;
+window.executeAssetAction = executeAssetAction;
+window.importAsTemplate   = importAsTemplate;
+
+// Native <select> handlers for mobile three-dots menus.
+// Using OS-native pickers bypasses all iOS Safari touch/overflow/z-index issues.
+window.handleReportSelect = function(sel, reportId) {
+    const action = sel.value;
+    sel.selectedIndex = 0;
+    if (!action) return;
+    if (action === 'open')   openReport(reportId);
+    if (action === 'move')   showAssetMoveModal('report', reportId, 'move');
+    if (action === 'copy')   showAssetMoveModal('report', reportId, 'copy');
+    if (action === 'delete') {
+        const title = (S.reports[reportId] || {}).title || 'דוח זה';
+        if (confirm('למחוק את הדוח "' + title + '"?')) deleteReportById(reportId);
+    }
+};
+
+window.handleTplSelect = function(sel, tplId, folderName) {
+    const action = sel.value;
+    sel.selectedIndex = 0;
+    if (!action) return;
+    if (action === 'newReport') createReportFromTemplate(tplId, folderName);
+    if (action === 'edit')      showTemplateEditor(tplId, folderName);
+    if (action === 'move')      showAssetMoveModal('template', tplId, 'move');
+    if (action === 'copy')      showAssetMoveModal('template', tplId, 'copy');
+    if (action === 'delete')    deleteTemplatePrompt(tplId);
+};
+
+window.handleToolbarSelect = function(sel) {
+    const action = sel.value;
+    sel.selectedIndex = 0;
+    if (!action) return;
+    if (action === 'save')     saveReport();
+    if (action === 'pdf')      downloadPDF();
+    if (action === 'share')    showShareModal();
+    if (action === 'template') showSaveAsTemplate();
+    if (action === 'folder')   showMoveFolderModal();
+    if (action === 'clear')    clearReport();
+    if (action === 'delete')   deleteReportPrompt();
+};
+
+window.calcTotalHours = function() {
+    const start   = document.getElementById('fStartTime')?.value;
+    const end     = document.getElementById('fEndTime')?.value;
+    const totalEl = document.getElementById('fTotalHours');
+    if (!totalEl) return;
+    if (!start || !end) { totalEl.value = ''; return; }
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    let diffMin = (eh * 60 + em) - (sh * 60 + sm);
+    if (diffMin < 0) diffMin += 24 * 60; // overnight
+    const hours = Math.floor(diffMin / 60);
+    const mins  = diffMin % 60;
+    totalEl.value = mins > 0
+        ? `${hours}:${String(mins).padStart(2, '0')} שעות`
+        : `${hours} שעות`;
+    markUnsaved();
+};
 
 window.setServiceType = function(val) {
     document.getElementById('fServiceType').value = val;
@@ -172,7 +235,10 @@ window.setTplServiceType = function(val) {
 /* ================================================================
    BOTTOM NAV — MOBILE TAB SWITCHING
 ================================================================ */
-function _isMobile() { return window.innerWidth <= 768; }
+function _isMobile() {
+    return window.innerWidth <= 768 ||
+           (window.innerHeight <= 500 && window.matchMedia('(orientation: landscape)').matches);
+}
 
 function switchTab(tab) {
     if (_isMobile()) {
@@ -267,6 +333,21 @@ document.addEventListener('keydown', e => {
 })();
 
 /* ================================================================
+   ORIENTATION CHANGE — keep mobile layout on phone landscape
+   Re-runs switchTab so panels reflect the correct viewport class
+   (_isMobile now fires for landscape phones with height ≤ 500px).
+================================================================ */
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        const activeTab =
+            document.querySelector('.bnav-item.active')?.dataset?.tab ||
+            document.querySelector('.dtab-btn.dtab-active')?.dataset?.dtab ||
+            'home';
+        switchTab(activeTab);
+    }, 150);
+});
+
+/* ================================================================
    AUTH – sign-in / sign-out handlers
 ================================================================ */
 window.doSignIn = async function() {
@@ -300,6 +381,7 @@ window.doSignIn = async function() {
 };
 
 window.doSignOut = async function() {
+    if (_userStatusUnsub) { _userStatusUnsub(); _userStatusUnsub = null; }
     await signOut(auth);
 };
 
@@ -410,8 +492,9 @@ async function init() {
     switchTab('home');
 }
 
-let _appBooted    = false;
-let _freshChecked = false;
+let _appBooted       = false;
+let _freshChecked    = false;
+let _userStatusUnsub = null;
 
 onAuthStateChanged(auth, async (user) => {
     if (!_freshChecked) {
@@ -436,16 +519,39 @@ onAuthStateChanged(auth, async (user) => {
         setupAdminPanel(user.email);
         const _rawEmail = user.email;
         const _isManager = _normalEmail === MANAGER_EMAIL
-            || _normalEmail === MANAGER_EMAIL2
             || _rawEmail === 'sagi.tisson@oficiency.com'
-            || _rawEmail === 'Sagi.tisson@oficiency.com'
-            || _rawEmail === 'maor.menachem@oficiency.com';
+            || _rawEmail === 'Sagi.tisson@oficiency.com';
         if (_isManager) {
             console.log('Master Admin Connected:', _rawEmail, '- Forcing Admin Panel Visibility.');
             setupManagerPanel();
+        } else {
+            // Security guard: verify the user has an approved record in Firestore.
+            // Managers bypass this check (no registration_request doc for them).
+            try {
+                const approved = await apiCheckUserApproval(user.email);
+                if (!approved) {
+                    console.warn('[AUTH-GUARD] No approved record for:', user.email, '— signing out.');
+                    await signOut(auth);
+                    return;
+                }
+            } catch (e) {
+                // Allow access on network failure to avoid locking out offline users.
+                console.warn('[AUTH-GUARD] Approval check failed (offline?):', e.message);
+            }
+            // Real-time listener: kick the user immediately if their access is revoked
+            // mid-session (admin changes status to rejected/deleted while they're active).
+            if (_userStatusUnsub) _userStatusUnsub();
+            _userStatusUnsub = apiSubscribeUserStatus(user.email, (status) => {
+                if (status !== 'approved') {
+                    console.warn('[AUTH-GUARD] Access revoked mid-session for:', user.email);
+                    if (_userStatusUnsub) { _userStatusUnsub(); _userStatusUnsub = null; }
+                    signOut(auth);
+                }
+            });
         }
         if (!_appBooted) { _appBooted = true; init(); }
     } else {
+        if (_userStatusUnsub) { _userStatusUnsub(); _userStatusUnsub = null; }
         cleanupAdminPanel();
         cleanupManagerPanel();
         if (_appBooted) {

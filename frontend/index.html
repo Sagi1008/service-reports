@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.3.17">
+    <link rel="stylesheet" href="style.css?v=1.3.40">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -151,8 +151,6 @@ window._showLoginWhenSplashDone = false;
 
     <div class="sidebar-footer">
         <button class="btn-sb-primary" onclick="showNewReportModal()">+ דוח חדש</button>
-        <button class="btn-sb-secondary" onclick="showTemplateEditor(null)">+ תבנית חדשה</button>
-        <button class="btn-sb-secondary" onclick="showModal('importChoiceModal')">ייבוא</button>
         <button id="adminPanelBtn" class="btn-admin-panel hidden" onclick="showAdminPanel()">
             בקשות הרשמה
             <span id="adminBadge" class="admin-badge hidden">0</span>
@@ -161,7 +159,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.17</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.40</div>
     </div>
 </aside>
 
@@ -202,6 +200,11 @@ window._showLoginWhenSplashDone = false;
 
         <div class="report-editor" id="reportEditor" style="display:none">
 
+            <!-- Logo header -->
+            <div class="report-logo-header">
+                <img src="assets/logo.png" alt="Oficiency" class="company-logo report-logo-img">
+            </div>
+
             <!-- Mobile back button -->
             <button class="report-back-btn" onclick="goBackToDashboard()">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><polyline points="9 18 15 12 9 6"/></svg>
@@ -241,6 +244,20 @@ window._showLoginWhenSplashDone = false;
                     <div class="fg">
                         <label class="lbl">מספר דוח</label>
                         <input type="text" id="fNumber" placeholder="אופציונלי" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="fg">
+                        <label class="lbl">שעת התחלה</label>
+                        <input type="time" id="fStartTime" oninput="calcTotalHours()" />
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">שעת סיום</label>
+                        <input type="time" id="fEndTime" oninput="calcTotalHours()" />
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">סה"כ שעות עבודה</label>
+                        <input type="text" id="fTotalHours" placeholder="מחושב אוטומטית" />
                     </div>
                 </div>
             </div>
@@ -676,6 +693,17 @@ window._showLoginWhenSplashDone = false;
     </div>
 </div>
 
+<!-- Move / Copy Asset -->
+<div class="overlay hidden" id="assetMoveModal">
+    <div class="modal">
+        <h3 id="assetMoveTitle">📁 העבר לתיקייה</h3>
+        <div id="assetMoveList" style="max-height:240px;overflow-y:auto;"></div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-cancel" onclick="hideModal('assetMoveModal')">סגור</button>
+        </div>
+    </div>
+</div>
+
 <!-- ══════════════════ TOAST / LOADING / LIGHTBOX ════════ -->
 <div class="toast"   id="toast"></div>
 <div class="loading hidden" id="loadingOverlay">
@@ -719,7 +747,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.3.17"></script>
-<script type="module" src="Js/app.js?v=1.3.17"></script>
+<script type="module" src="Js/api.js?v=1.3.40"></script>
+<script type="module" src="Js/app.js?v=1.3.40"></script>
 </body>
 </html>

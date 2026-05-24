@@ -66,6 +66,28 @@ export const S = {
 };
 
 /* ================================================================
+   RBAC HELPERS
+================================================================ */
+export const ADMIN_EMAIL_SINGLE = 'sagi.tisson@oficiency.com';
+
+/** Returns true if the currently logged-in user is the system administrator. */
+export function isAdmin() {
+    return (S.currentUser?.email || '').toLowerCase().trim() === ADMIN_EMAIL_SINGLE;
+}
+
+/** Returns true if the current user may edit report r.
+ *  Admins can always edit. For regular technicians, they can only edit
+ *  reports they created (matched by createdBy email). Legacy reports
+ *  that have no createdBy field are treated as editable by anyone. */
+export function canEditReport(r) {
+    if (isAdmin()) return true;
+    const email = S.currentUser?.email || '';
+    if (!email) return false;
+    if (!r?.createdBy) return true; // legacy report — no creator stored
+    return email === r.createdBy;
+}
+
+/* ================================================================
    FIRESTORE HELPERS
 ================================================================ */
 /** Firestore rejects `undefined`. Recursively drop undefined keys
@@ -499,13 +521,40 @@ export function apiSubscribePendingRegistrations(cb) {
     );
 }
 
+/** Signs into a secondary Firebase app as the target user and deletes their Auth account.
+ *  Errors are caught and logged — they must not block the Firestore write that follows. */
+async function _deleteAuthAccount(email, password) {
+    const secondaryApp = initializeApp(firebaseConfig, `del-${Date.now()}`);
+    try {
+        const secondaryAuth = initializeAuth(secondaryApp, { persistence: inMemoryPersistence });
+        const cred = await signInWithEmailAndPassword(secondaryAuth, email, password);
+        await cred.user.delete();
+        console.log('[AUTH DELETE] removed auth account for', email);
+    } catch (e) {
+        // Not fatal — account may already be gone, password may have changed, etc.
+        console.warn('[AUTH DELETE] could not remove auth account for', email, ':', e.code, e.message);
+    } finally {
+        await deleteApp(secondaryApp);
+    }
+}
+
 /** אישור בקשה: יצירת משתמש Firebase Auth דרך אפליקציה משנית, ועדכון סטטוס */
 export async function apiApproveRegistration(docId, name, email, password) {
     const secondaryApp = initializeApp(firebaseConfig, `reg-${Date.now()}`);
     try {
         const secondaryAuth = initializeAuth(secondaryApp, { persistence: inMemoryPersistence });
-        const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-        await updateProfile(cred.user, { displayName: name });
+        try {
+            const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+            await updateProfile(cred.user, { displayName: name });
+        } catch (authErr) {
+            if (authErr.code === 'auth/email-already-in-use') {
+                // Auth account already exists (previously approved or created externally).
+                // Treat as success and proceed to mark approved in Firestore.
+                console.log('[APPROVE] auth account already exists for', email, '— continuing to Firestore update');
+            } else {
+                throw authErr; // unexpected — propagate to caller
+            }
+        }
     } finally {
         await deleteApp(secondaryApp);
     }
@@ -515,8 +564,13 @@ export async function apiApproveRegistration(docId, name, email, password) {
     });
 }
 
-/** דחיית בקשה: עדכון סטטוס בלבד */
+/** דחיית בקשה: מחיקה מ-Firebase Auth ועדכון סטטוס ב-Firestore */
 export async function apiRejectRegistration(docId) {
+    const reqSnap = await getDoc(doc(db, 'registration_requests', docId));
+    if (reqSnap.exists()) {
+        const { email, password } = reqSnap.data();
+        if (email && password) await _deleteAuthAccount(email, password);
+    }
     await updateDoc(doc(db, 'registration_requests', docId), {
         status:     'rejected',
         rejectedAt: serverTimestamp(),
@@ -660,7 +714,13 @@ export async function apiGetApprovedUsers() {
     return users.sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
+/** ביטול גישה: מחיקת חשבון Firebase Auth ועדכון סטטוס ב-Firestore */
 export async function apiRevokeUserAccess(docId) {
+    const reqSnap = await getDoc(doc(db, 'registration_requests', docId));
+    if (reqSnap.exists()) {
+        const { email, password } = reqSnap.data();
+        if (email && password) await _deleteAuthAccount(email, password);
+    }
     await updateDoc(doc(db, 'registration_requests', docId), {
         status:    'rejected',
         revokedAt: serverTimestamp(),
@@ -694,6 +754,39 @@ export async function apiLogEquipmentHandover(logData) {
     });
     const docRef = await addDoc(collection(db, "equipment_logs"), payload);
     return { id: docRef.id, ...payload };
+}
+
+/* ================================================================
+   API – AUTH GUARD (approval check + real-time session revocation)
+================================================================ */
+
+/** Returns true if the given email has an approved registration record. */
+export async function apiCheckUserApproval(email) {
+    const q = query(
+        collection(db, 'registration_requests'),
+        where('email', '==', email),
+        where('status', '==', 'approved')
+    );
+    const snap = await getDocs(q);
+    return !snap.empty;
+}
+
+/** Subscribes to the user's registration status.
+ *  Calls cb('approved') or cb('not_approved') on every change.
+ *  Returns an unsubscribe function. */
+export function apiSubscribeUserStatus(email, cb) {
+    const q = query(
+        collection(db, 'registration_requests'),
+        where('email', '==', email)
+    );
+    return onSnapshot(q,
+        (snap) => {
+            let approved = false;
+            snap.forEach(d => { if (d.data().status === 'approved') approved = true; });
+            cb(approved ? 'approved' : 'not_approved');
+        },
+        (err) => { console.warn('[AUTH-GUARD] status listener error:', err.message); }
+    );
 }
 
 /* ================================================================
