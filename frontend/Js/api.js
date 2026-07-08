@@ -17,6 +17,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // מפתחות החיבור שקיבלת מהקונסול של Firebase שלך
+/*
 const firebaseConfig = {
   apiKey: "AIzaSyCcqnXeV1VXdMODF0E0wiqGNjkdCVFBHbU",
   authDomain: "oficiency-1bbf9.firebaseapp.com",
@@ -25,6 +26,17 @@ const firebaseConfig = {
   messagingSenderId: "38007578536",
   appId: "1:38007578536:web:24a10e19eb109864b9c79d",
   measurementId: "G-9Z5QVVb3CM"
+};
+*/
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBKdMzNYuD_SODQkZYaYbf_cOVK7i35bro",
+  authDomain: "reports-test-504cd.firebaseapp.com",
+  projectId: "reports-test-504cd",
+  storageBucket: "reports-test-504cd.firebasestorage.app",
+  messagingSenderId: "492681235098",
+  appId: "1:492681235098:web:200c24bfcb63796f53ed23",
+  measurementId: "G-24L6HY2MKT"
 };
 
 // אתחול Firebase ושירותי הענן
@@ -456,12 +468,14 @@ export async function apiSaveReport(report) {
     report.customerSig = custSig;
 
     // 2. Derive denormalised status fields for cheap dashboard queries.
+    // "answered" = any status that isn't the default 'pending' (ok, not-ok, under-review, etc.)
+    // 0 tasks → completed immediately (fault/extra/other reports with no checklist)
     const tasks    = (report.tasks || []).filter(t => t.type !== 'section');
-    const performed = tasks.filter(t => t.status === 'performed').length;
-    const status   = tasks.length === 0     ? 'pending'
-                   : performed === tasks.length ? 'completed'
-                   : performed > 0              ? 'in_progress'
-                   :                              'pending';
+    const answered = tasks.filter(t => t.status && t.status !== 'pending').length;
+    const status   = tasks.length === 0        ? 'completed'
+                   : answered === tasks.length ? 'completed'
+                   : answered > 0              ? 'in_progress'
+                   :                            'pending';
 
     const reportPayload = _sanitize({
         technician_name:  report.tech?.name || '',
