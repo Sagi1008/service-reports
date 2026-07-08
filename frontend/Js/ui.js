@@ -1,4 +1,21 @@
 import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport } from './api.js';
+import { renumberTplTasks } from './components/taskComponent.js';
+import { buildLogBoard }     from './components/folderBoard.js';
+
+/* Re-export all task & template functions so existing imports from this
+   module continue to resolve without changes in reports.js or app.js. */
+export {
+    appendTask, appendSectionTitle,
+    addTask, addRangeTask, addSectionTitle,
+    taskCount, updateTaskCount,
+    removeTask, setStatus,
+    collectTasks, renderTasks,
+    renderTplTasks,
+    appendTplTask, appendTplSection,
+    addTplTask, addTplSection,
+    appendTplRangeTask, addTplRangeTask,
+    tplTaskCount, renumberTplTasks,
+} from './components/taskComponent.js';
 
 /* ================================================================
    SIGNATURE PAD
@@ -35,8 +52,8 @@ function _initOnePad(canvasId, stateKey, height) {
 }
 
 export function initPad() {
-    _initOnePad('signatureCanvas',     'pad',         140);
-    _initOnePad('customerSigCanvas',   'customerPad', 160);
+    _initOnePad('signatureCanvas',   'pad',         140);
+    _initOnePad('customerSigCanvas', 'customerPad', 160);
 }
 
 export function clearSignature()         { S.pad         && S.pad.clear();         markUnsaved(); }
@@ -65,13 +82,12 @@ export function setTodayDates() {
 /* ================================================================
    REPORT MODE
 ================================================================ */
-/* ── shared card renderer ─────────────────────────────────── */
 function _buildReportCards(reports, showActions = false) {
     const statusLabel = { pending: 'ממתין', in_progress: 'בתהליך', completed: 'הושלם' };
     const statusClass = { pending: 'dash-status-pending', in_progress: 'dash-status-progress', completed: 'dash-status-done' };
     return reports.map(r => {
         const tasks  = (r.tasks || []).filter(t => t.type !== 'section');
-        const done   = tasks.filter(t => t.status === 'performed').length;
+        const done   = tasks.filter(t => t.status === 'performed' || t.status === 'in_range').length;
         const status = tasks.length === 0    ? 'pending'
                      : done === tasks.length ? 'completed'
                      : done > 0              ? 'in_progress'
@@ -111,7 +127,6 @@ function _buildReportCards(reports, showActions = false) {
 function _buildDocCards(docs) {
     return docs.map(a => {
         const icon = fileIcon(a.file_type);
-        // Firebase Storage URLs are absolute (no API_BASE prefix needed).
         const url  = esc(a.file_path);
         return `
             <div class="dash-card dash-card-doc" onclick="window.open('${url}','_blank')">
@@ -130,7 +145,6 @@ export async function deleteAttachment(id, filename) {
     if (!confirm(`למחוק את הקובץ "${filename}"?`)) return;
     try {
         await apiDeleteAttachment(id);
-        // Remove from cached state
         for (const key of Object.keys(S.attachments)) {
             S.attachments[key] = S.attachments[key].filter(a => a.id !== id);
         }
@@ -152,9 +166,12 @@ function _showContentView() {
     if (tplPage) tplPage.style.display = 'none';
     updateToolbar();
     renderSidebar();
-    // Restore FAB on mobile when returning to list view
     const fab = document.getElementById('mobileFab');
-    if (fab && window.innerWidth <= 768) fab.classList.add('fab-visible');
+    if (fab && window.innerWidth <= 768) {
+        // Show FAB on home and reports tabs; hide only on equipment tab
+        const activeTab = document.querySelector('.bnav-item.active')?.dataset?.tab;
+        fab.classList.toggle('fab-visible', activeTab !== 'equipment');
+    }
 }
 
 function _buildFolderCards(folderNames) {
@@ -174,7 +191,7 @@ function _buildFolderCards(folderNames) {
 export function showDashboard() {
     S.currentFolder = null;
     _showContentView();
-    const container = document.getElementById('dashboardView');
+    const container  = document.getElementById('dashboardView');
     const folderNames = Object.keys(S.folders);
     const reports = Object.values(S.reports)
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
@@ -239,7 +256,6 @@ export async function showFolderContent(folderName) {
     _showContentView();
     const container = document.getElementById('dashboardView');
 
-    // Loading skeleton
     container.innerHTML = `
         <div class="site-topbar">
             <button class="site-back-btn" onclick="showDashboard()">
@@ -254,7 +270,6 @@ export async function showFolderContent(folderName) {
     const reports = ids.map(id => S.reports[id])
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     const docs    = S.attachments[folderName] || [];
-    const tplIds  = Object.keys(S.templates);
     const totalReports = reports.length + docs.length;
 
     // ── History tab content ───────────────────────────────────────
@@ -272,7 +287,7 @@ export async function showFolderContent(folderName) {
             <div class="dash-grid">${_buildDocCards(docs)}</div>`;
     }
 
-    // ── Templates tab content (folder-scoped only) ───────────────
+    // ── Templates tab content ─────────────────────────────────────
     const safeFolderName = esc(folderName);
     const folderTpls = Object.values(S.templates).filter(t => t.folder === folderName);
 
@@ -287,30 +302,21 @@ export async function showFolderContent(folderName) {
                     <div class="site-tpl-name">${esc(t.name)}</div>
                     <div class="site-tpl-meta">${t.tasks?.length || 0} משימות</div>
                 </div>
-                <!-- Desktop action buttons (hidden on mobile) -->
                 <div class="card-actions-desktop" style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-                    <button class="site-tpl-btn"
-                        onclick="createReportFromTemplate('${safeId}','${safeFolderName}')">
-                        + דוח
-                    </button>
-                    <button class="site-tpl-btn"
-                        onclick="showTemplateEditor('${safeId}','${safeFolderName}')">
+                    <button class="site-tpl-btn" onclick="createReportFromTemplate('${safeId}','${safeFolderName}')">+ דוח</button>
+                    <button class="site-tpl-btn" onclick="showTemplateEditor('${safeId}','${safeFolderName}')">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
-                    <button class="site-tpl-btn" title="העבר תבנית"
-                        onclick="showAssetMoveModal('template','${safeId}','move')">
+                    <button class="site-tpl-btn" title="העבר תבנית" onclick="showAssetMoveModal('template','${safeId}','move')">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                     </button>
-                    <button class="site-tpl-btn" title="העתק תבנית"
-                        onclick="showAssetMoveModal('template','${safeId}','copy')">
+                    <button class="site-tpl-btn" title="העתק תבנית" onclick="showAssetMoveModal('template','${safeId}','copy')">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                     </button>
-                    <button class="site-tpl-btn site-tpl-btn-del"
-                        onclick="deleteTemplatePrompt('${safeId}')" title="מחק תבנית">
+                    <button class="site-tpl-btn site-tpl-btn-del" onclick="deleteTemplatePrompt('${safeId}')" title="מחק תבנית">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     </button>
                 </div>
-                <!-- Mobile three-dots menu (hidden on desktop) -->
                 <div class="mobile-dots-wrap">
                     <select class="mobile-dots-select" onchange="handleTplSelect(this,'${safeId}','${safeFolderName}')">
                         <option value="">⋮</option>
@@ -326,28 +332,22 @@ export async function showFolderContent(folderName) {
 
     const newTplBtn = `
         <div style="display:flex;gap:8px;margin-bottom:16px;">
-            <button class="dash-new-folder-btn" style="flex:1"
-                    onclick="showTemplateEditor(null,'${safeFolderName}')">
-                + תבנית חדשה
-            </button>
-            <button class="dash-new-folder-btn" style="white-space:nowrap;padding:7px 16px;"
-                    onclick="importAsTemplate('${safeFolderName}')">
-                ייבוא
-            </button>
+            <button class="dash-new-folder-btn" style="flex:1" onclick="showTemplateEditor(null,'${safeFolderName}')">+ תבנית חדשה</button>
+            <button class="dash-new-folder-btn" style="white-space:nowrap;padding:7px 16px;" onclick="importAsTemplate('${safeFolderName}')">ייבוא</button>
         </div>`;
 
     let templatesHtml = newTplBtn;
     if (!folderTpls.length) {
-        templatesHtml += `
-            <div class="dash-empty">
-                <p>אין תבניות עדיין. לחץ "+ תבנית חדשה" ליצירה.</p>
-            </div>`;
+        templatesHtml += `<div class="dash-empty"><p>אין תבניות עדיין. לחץ "+ תבנית חדשה" ליצירה.</p></div>`;
     } else {
         templatesHtml += `<div class="site-tpl-list">${folderTpls.map(_tplCard).join('')}</div>`;
     }
 
     // ── Procedures tab content ────────────────────────────────────
     const proceduresHtml = _buildProceduresPanel(folderName);
+
+    // ── Log board tab content (folderBoard module) ────────────────
+    const logBoardHtml = buildLogBoard(folderName);
 
     // ── Assemble full view ────────────────────────────────────────
     const safeFN = esc(folderName);
@@ -380,19 +380,20 @@ export async function showFolderContent(folderName) {
         <div class="site-tabs" role="tablist">
             <button class="site-tab active" role="tab" data-tab="history"    onclick="switchFolderTab('history')">היסטוריית דו״חות</button>
             <button class="site-tab"        role="tab" data-tab="templates"  onclick="switchFolderTab('templates')">תבניות</button>
-            <button class="site-tab"        role="tab" data-tab="procedures" onclick="switchFolderTab('procedures')">נהלים והנחיות</button>
+            <button class="site-tab"        role="tab" data-tab="procedures" onclick="switchFolderTab('procedures')">נהלים</button>
+            <button class="site-tab"        role="tab" data-tab="logboard"   onclick="switchFolderTab('logboard')">לוח טיפולים</button>
         </div>
 
         <div class="site-panel" data-panel="history">${historyHtml}</div>
         <div class="site-panel hidden" data-panel="templates">${templatesHtml}</div>
-        <div class="site-panel hidden" data-panel="procedures">${proceduresHtml}</div>`;
+        <div class="site-panel hidden" data-panel="procedures">${proceduresHtml}</div>
+        <div class="site-panel hidden" data-panel="logboard">${logBoardHtml}</div>`;
 }
 
-/* ── Procedures helpers ──────────────────────────────────────────── */
+/* ================================================================
+   PROCEDURES
+================================================================ */
 function _buildProceduresPanel(folderName) {
-    // Deduplicate by Firestore id — guards against the race where the
-    // onSnapshot listener (persistent local cache) fires before addDoc
-    // resolves, causing the same document to appear twice in S.procedures.
     const _seen = new Set();
     const procs = (S.procedures[folderName] || [])
         .filter(p => { if (!p.id || _seen.has(p.id)) return false; _seen.add(p.id); return true; })
@@ -400,16 +401,12 @@ function _buildProceduresPanel(folderName) {
     const safeName = esc(folderName);
 
     let html = `
-        <button class="dash-new-folder-btn" style="margin-bottom:16px"
-                onclick="uploadProcedure('${safeName}')">
+        <button class="dash-new-folder-btn" style="margin-bottom:16px" onclick="uploadProcedure('${safeName}')">
             + הוסף נוהל
         </button>`;
 
     if (!procs.length) {
-        html += `
-            <div class="dash-empty" style="min-height:160px">
-                <p>אין נהלים מצורפים לאתר זה עדיין.</p>
-            </div>`;
+        html += `<div class="dash-empty" style="min-height:160px"><p>אין נהלים מצורפים לאתר זה עדיין.</p></div>`;
     } else {
         html += `<div class="site-tpl-list">` +
             procs.map(p => {
@@ -421,8 +418,7 @@ function _buildProceduresPanel(folderName) {
                     ? 'https://docs.google.com/viewer?url=' + encodeURIComponent(rawUrl) + '&embedded=true'
                     : rawUrl;
                 return `
-                    <a href="${esc(viewUrl)}" target="_blank" rel="noopener noreferrer"
-                       class="site-tpl-card proc-card">
+                    <a href="${esc(viewUrl)}" target="_blank" rel="noopener noreferrer" class="site-tpl-card proc-card">
                         <div class="proc-file-icon">${icon}</div>
                         <div class="site-tpl-info proc-info">
                             <div class="site-tpl-name">${esc(p.filename)}</div>
@@ -454,7 +450,6 @@ export async function uploadProcedure(folderName) {
             document.body.removeChild(input);
             if (!file) { resolve(); return; }
 
-            // Show inline loading state in the panel
             const panel = document.querySelector('[data-panel="procedures"]');
             if (panel) {
                 panel.innerHTML = `
@@ -466,10 +461,6 @@ export async function uploadProcedure(folderName) {
 
             try {
                 await apiUploadProcedure(file, folderName);
-                // Don't manually push to S.procedures — Firestore's onSnapshot listener
-                // (via persistentLocalCache) fires before addDoc resolves and already
-                // adds the new doc to S.procedures. A manual unshift here would duplicate it.
-                // _buildProceduresPanel also deduplicates by id as a safety net.
                 if (panel) panel.innerHTML = _buildProceduresPanel(folderName);
                 toast('הנוהל הועלה בהצלחה ✓', 'success');
             } catch (err) {
@@ -502,156 +493,19 @@ export async function deleteProcedure(id, folderName) {
 }
 
 export function setReportMode(mode) {
-    // mode = 'report' | 'template-editing'
     const isReport = mode === 'report';
     document.getElementById('dashboardView').style.display = 'none';
     document.getElementById('emptyState').style.display   = 'none';
     document.getElementById('reportEditor').style.display = 'block';
-    document.getElementById('cardImages').style.display       = isReport ? '' : 'none';
-    document.getElementById('cardTech').style.display         = isReport ? '' : 'none';
+    document.getElementById('cardImages').style.display        = isReport ? '' : 'none';
+    document.getElementById('cardTech').style.display          = isReport ? '' : 'none';
     document.getElementById('cardFinalComments').style.display = isReport ? '' : 'none';
     document.getElementById('cardCustomerSig').style.display   = isReport ? '' : 'none';
     document.getElementById('cardDetails').querySelector('#fCustomer').closest('.fg').style.display   = isReport ? '' : 'none';
     document.getElementById('cardDetails').querySelector('#fVisitDate').closest('.fg').style.display  = isReport ? '' : 'none';
     document.getElementById('cardDetails').querySelector('#fNumber').closest('.fg').style.display     = isReport ? '' : 'none';
-    // status buttons on tasks
     document.querySelectorAll('.status-btns').forEach(el => el.style.display = isReport ? '' : 'none');
-}
-
-/* ================================================================
-   TASKS
-================================================================ */
-export function renderTasks(tasks) {
-    document.getElementById('tasksList').innerHTML = '';
-    let taskNum = 0;
-    tasks.forEach(t => {
-        if (t.type === 'section') {
-            appendSectionTitle(t);
-        } else {
-            appendTask(t, ++taskNum);
-        }
-    });
-    updateTaskCount();
-    // Auto-expand all task description textareas after DOM settles
-    setTimeout(() => {
-        document.querySelectorAll('#tasksList .task-desc').forEach(ta => {
-            if (window.autoExpand) window.autoExpand(ta);
-        });
-    }, 30);
-}
-
-export function addTask() {
-    const id = 'tk_' + (++S.taskCounter);
-    appendTask({ id, type: 'task', description: '', status: 'pending', comments: '' }, taskCount() + 1);
-    markUnsaved();
-    updateTaskCount();
-    setTimeout(() => {
-        const last = document.querySelector('#tasksList .task-item:last-child .task-desc');
-        if (last) {
-            if (window.autoExpand) window.autoExpand(last);
-            last.focus();
-        }
-    }, 40);
-}
-
-export function addSectionTitle() {
-    const id = 'sec_' + (++S.taskCounter);
-    appendSectionTitle({ id, type: 'section', title: '' });
-    markUnsaved();
-    setTimeout(() => {
-        const last = document.querySelector('#tasksList .section-title-item:last-of-type .section-title-input');
-        if (last) last.focus();
-    }, 40);
-}
-
-export function taskCount() { return document.querySelectorAll('#tasksList .task-item').length; }
-export function updateTaskCount() {
-    const n = taskCount();
-    document.getElementById('taskCountBadge').textContent = n + ' משימות';
-}
-
-export function appendSectionTitle(t) {
-    const list = document.getElementById('tasksList');
-    const div  = document.createElement('div');
-    div.className  = 'section-title-item';
-    div.dataset.id = t.id;
-    div.dataset.type = 'section';
-    div.innerHTML = `
-        <div class="drag-handle" title="גרור לשינוי סדר">⋮⋮</div>
-        <input type="text" class="section-title-input" value="${esc(t.title||'')}"
-               placeholder="שם האזור / קטגוריה..." oninput="markUnsaved()">
-        <button class="section-del-btn" onclick="this.closest('.section-title-item').remove();markUnsaved()">✕</button>
-    `;
-    list.appendChild(div);
-}
-
-export function appendTask(t, num) {
-    const list = document.getElementById('tasksList');
-    const cls  = t.status === 'performed' ? 'performed' : t.status === 'not_performed' ? 'not-performed' : '';
-    const isReport = S.currentMode === 'report';
-    const div = document.createElement('div');
-    div.className  = 'task-item ' + cls;
-    div.dataset.id = t.id;
-    div.dataset.type = 'task';
-    div.dataset.status = t.status;
-    div.innerHTML = `
-        <div class="task-row">
-            <div class="drag-handle" title="גרור לשינוי סדר">⋮⋮</div>
-            <span class="task-num">${num}</span>
-            <textarea class="task-desc" rows="1" placeholder="תיאור המשימה..." oninput="markUnsaved();if(window.autoExpand)window.autoExpand(this)">${esc(t.description)}</textarea>
-            <div class="status-btns" style="${isReport ? '' : 'display:none'}">
-                <button class="sbtn sbtn-yes ${t.status==='performed'?'active':''}" onclick="setStatus(this,'performed')">✓ תקין</button>
-                <button class="sbtn sbtn-no  ${t.status==='not_performed'?'active':''}" onclick="setStatus(this,'not_performed')">✗ לא תקין</button>
-            </div>
-            <button class="task-del-btn" onclick="removeTask(this)">✕</button>
-        </div>
-        <textarea class="task-comment" placeholder="הערות למשימה זו..." oninput="markUnsaved()">${esc(t.comments)}</textarea>
-    `;
-    list.appendChild(div);
-}
-
-export function setStatus(btn, status) {
-    const item = btn.closest('.task-item');
-    // Second click on the active button clears the status
-    const toggled = item.dataset.status === status ? 'pending' : status;
-    item.dataset.status = toggled;
-    item.querySelectorAll('.sbtn').forEach(b => b.classList.remove('active'));
-    if (toggled !== 'pending') btn.classList.add('active');
-    item.classList.remove('performed', 'not-performed');
-    if (toggled === 'performed')     item.classList.add('performed');
-    if (toggled === 'not_performed') item.classList.add('not-performed');
-    markUnsaved();
-}
-
-export function removeTask(btn) {
-    btn.closest('.task-item').remove();
-    // re-number only task items (not section titles)
-    let num = 0;
-    document.querySelectorAll('#tasksList .task-item').forEach(el => {
-        el.querySelector('.task-num').textContent = ++num;
-    });
-    markUnsaved();
-    updateTaskCount();
-}
-
-export function collectTasks() {
-    const items = document.querySelectorAll('#tasksList .task-item, #tasksList .section-title-item');
-    return Array.from(items).map(el => {
-        if (el.dataset.type === 'section') {
-            return {
-                id:    el.dataset.id,
-                type:  'section',
-                title: el.querySelector('.section-title-input').value,
-            };
-        }
-        return {
-            id:          el.dataset.id,
-            type:        'task',
-            description: el.querySelector('.task-desc').value,
-            status:      el.dataset.status || 'pending',
-            comments:    el.querySelector('.task-comment').value,
-        };
-    });
+    document.querySelectorAll('.task-reading-wrap').forEach(el => el.style.display = isReport ? '' : 'none');
 }
 
 /* ================================================================
@@ -665,29 +519,47 @@ export async function handleImages(e) {
     if (!files.length) return;
     e.target.value = '';
 
-    const compressionOptions = {
-        maxWidthOrHeight: 1920,
-        useWebWorker:     true,
-        initialQuality:   0.8,
-    };
-
     for (const file of files) {
         try {
-            let blob = file;
-            if (file.size > 512 * 1024) { // only compress if > 512 KB
-                console.log('[IMG] compressing:', file.name, `${(file.size/1024/1024).toFixed(1)}MB`);
-                blob = await imageCompression(file, compressionOptions);
-                console.log('[IMG] compressed to:', `${(blob.size/1024/1024).toFixed(1)}MB`);
-            }
-            const dataUrl = await imageCompression.getDataUrlFromFile(blob);
+            const dataUrl = await _processImageFile(file);
             r.images.push(dataUrl);
             renderImages(r.images);
             markUnsaved();
         } catch (err) {
-            console.error('[IMG] compression/read error for', file.name, err);
-            toast('שגיאה בעיבוד התמונה', 'error');
+            console.error('[IMG] error for', file.name, err);
+            const isHeic = /\.(heic|heif)$/i.test(file.name) || /image\/(heic|heif)/i.test(file.type);
+            toast(isHeic ? 'פורמט HEIC אינו נתמך במכשיר זה – שתף את התמונה תחילה ל-JPEG' : 'שגיאה בעיבוד התמונה', 'error');
         }
     }
+}
+
+async function _processImageFile(file) {
+    // Always compress & convert to JPEG — ensures format conversion from HEIC/WebP/etc.
+    const opts = { maxWidthOrHeight: 1920, useWebWorker: true, initialQuality: 0.82, fileType: 'image/jpeg' };
+    try {
+        const blob = await imageCompression(file, opts);
+        const dataUrl = await imageCompression.getDataUrlFromFile(blob);
+        console.log('[IMG] compressed:', file.name, `→ ${(blob.size/1024/1024).toFixed(1)}MB`);
+        return dataUrl;
+    } catch (libErr) {
+        console.warn('[IMG] library compression failed, trying canvas fallback:', libErr.message);
+    }
+    // Canvas fallback via createImageBitmap — supports JPEG/PNG/WebP/GIF on all modern browsers
+    const bitmap = await createImageBitmap(file);
+    let w = bitmap.width, h = bitmap.height;
+    const MAX = 1920;
+    if (w > MAX || h > MAX) {
+        const scale = MAX / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width  = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    console.log('[IMG] canvas fallback OK:', file.name, `${w}×${h}`);
+    return canvas.toDataURL('image/jpeg', 0.82);
 }
 
 export function renderImages(images) {
@@ -725,15 +597,12 @@ export function renderReportAppendices(appendices) {
     const card = document.getElementById('cardAppendices');
     const list = document.getElementById('reportAppendicesList');
     list.innerHTML = '';
-    if (!appendices || appendices.length === 0) {
-        card.style.display = 'none';
-        return;
-    }
+    if (!appendices || appendices.length === 0) { card.style.display = 'none'; return; }
     card.style.display = '';
     appendices.forEach(app => {
         const block = document.createElement('div');
-        block.className      = 'report-appendix-block';
-        block.dataset.appId  = app.id;
+        block.className       = 'report-appendix-block';
+        block.dataset.appId   = app.id;
         block.dataset.fileData = app.fileData || '';
         block.dataset.fileType = app.fileType || '';
         block.innerHTML = `
@@ -755,7 +624,6 @@ export function openAppendixFile(btn) {
     const fileName = block.querySelector('.report-appendix-name').textContent;
     if (!fileData) { toast('לא נמצא קובץ', 'error'); return; }
 
-    // For images / PDFs — open in new tab directly
     if (fileType.includes('image') || fileType.includes('pdf')) {
         const win = window.open();
         if (fileType.includes('image')) {
@@ -766,7 +634,6 @@ export function openAppendixFile(btn) {
         return;
     }
 
-    // For Word / Excel / other — trigger download
     const a = document.createElement('a');
     a.href     = fileData;
     a.download = fileName;
@@ -785,75 +652,6 @@ export function collectReportAppendices() {
 }
 
 /* ================================================================
-   TEMPLATE TASK EDITOR
-================================================================ */
-export function renderTplTasks(tasks) {
-    const list = document.getElementById('tplTaskList');
-    list.innerHTML = '';
-    let num = 0;
-    tasks.forEach(t => {
-        if (t.type === 'section') appendTplSection(t);
-        else appendTplTask(t, ++num);
-    });
-}
-
-export function appendTplTask(t, num) {
-    const list = document.getElementById('tplTaskList');
-    const row  = document.createElement('div');
-    row.className = 'tpl-task-row';
-    row.dataset.type = 'task';
-    row.innerHTML = `
-        <div class="drag-handle" title="גרור לשינוי סדר">⋮⋮</div>
-        <span style="font-size:10.5px;font-weight:800;color:var(--slate-400);min-width:20px;text-align:center;flex-shrink:0;">${num}</span>
-        <input type="text" class="tpl-task-input" value="${esc(t.description||'')}" placeholder="תיאור משימה...">
-        <button class="tpl-task-del" onclick="this.parentElement.remove();renumberTplTasks()">✕</button>
-    `;
-    list.appendChild(row);
-}
-
-export function appendTplSection(t) {
-    const list = document.getElementById('tplTaskList');
-    const div  = document.createElement('div');
-    div.className  = 'section-title-item';
-    div.dataset.type = 'section';
-    div.innerHTML = `
-        <div class="drag-handle" title="גרור לשינוי סדר">⋮⋮</div>
-        <input type="text" class="section-title-input" value="${esc(t.title||'')}" placeholder="שם האזור / קטגוריה...">
-        <button class="section-del-btn" onclick="this.closest('.section-title-item').remove()">✕</button>
-    `;
-    list.appendChild(div);
-}
-
-export function addTplTask() {
-    appendTplTask({ description: '' }, tplTaskCount() + 1);
-    setTimeout(() => {
-        const list = document.getElementById('tplTaskList');
-        const last = list.querySelector('.tpl-task-row:last-child .tpl-task-input');
-        if (last) last.focus();
-    }, 40);
-}
-
-export function addTplSection() {
-    appendTplSection({ type: 'section', title: '' });
-    setTimeout(() => {
-        const list = document.getElementById('tplTaskList');
-        const last = list.querySelector('.section-title-item:last-of-type .section-title-input');
-        if (last) last.focus();
-    }, 40);
-}
-
-export function tplTaskCount() {
-    return document.querySelectorAll('#tplTaskList .tpl-task-row').length;
-}
-
-export function renumberTplTasks() {
-    let num = 0;
-    document.querySelectorAll('#tplTaskList .tpl-task-row').forEach(row => {
-        row.querySelector('span').textContent = ++num;
-    });
-}
-
-/* ================================================================
    TEMPLATE APPENDIX EDITOR
 ================================================================ */
 export function renderTplAppendices(appendices) {
@@ -865,8 +663,8 @@ export function renderTplAppendices(appendices) {
 export function appendTplAppendixBlock(app) {
     const list = document.getElementById('tplAppendicesList');
     const div  = document.createElement('div');
-    div.className     = 'appendix-editor-block';
-    div.dataset.appId = app.id;
+    div.className      = 'appendix-editor-block';
+    div.dataset.appId  = app.id;
     div.dataset.fileData = app.fileData || '';
     div.dataset.fileType = app.fileType || '';
     div.innerHTML = `
@@ -920,7 +718,6 @@ export function renderSidebar() {
     const c = document.getElementById('sidebarBody');
     c.innerHTML = '';
 
-    // ── Folders + reports ──
     Object.keys(S.folders).forEach(name => {
         const ids = (S.folders[name] || []).filter(id => S.reports[id]);
         const fi  = document.createElement('div');
@@ -960,14 +757,13 @@ export function renderSidebar() {
         c.appendChild(fi);
     });
 
-    // ── Unfiled reports ──
     const unfiled = Object.keys(S.reports).filter(id => {
         const r = S.reports[id];
         return !r.folder || !S.folders[r.folder] || !S.folders[r.folder].includes(id);
     });
     if (unfiled.length) {
         const lbl = document.createElement('div');
-        lbl.className = 'sb-label';
+        lbl.className   = 'sb-label';
         lbl.textContent = 'דו"חות אחרונים';
         c.appendChild(lbl);
         unfiled.forEach(id => {
@@ -986,7 +782,6 @@ export function renderSidebar() {
         });
     }
 
-    // Empty state
     if (!Object.keys(S.folders).length && !unfiled.length) {
         c.innerHTML = '<div style="padding:18px 10px;font-size:12px;color:#3d506b;text-align:center;line-height:1.7;">עדיין אין דוחות.<br>לחץ <strong style="color:#60a5fa;">"+ דוח חדש"</strong> להתחלה.</div>';
     }
@@ -1003,13 +798,12 @@ export function updateToolbar() {
     const actions = document.getElementById('toolbarActions');
 
     if (!S.currentId) {
-        title.innerHTML  = 'מערכת ניהול ותחזוקה';
-        mode.innerHTML   = '';
-        actions.innerHTML= '';
+        title.innerHTML   = 'מערכת ניהול ותחזוקה';
+        mode.innerHTML    = '';
+        actions.innerHTML = '';
         return;
     }
 
-    // Hide FAB while a report is open on mobile
     const fab = document.getElementById('mobileFab');
     if (fab && window.innerWidth <= 768) fab.classList.remove('fab-visible');
 
@@ -1043,7 +837,6 @@ export function updateToolbar() {
                 </select>
             </div>`;
     } else {
-        // Read-only: viewer can export/share but not modify
         actions.innerHTML = `
             <div class="card-actions-desktop" style="display:flex;gap:5px;align-items:center;">
                 <span style="font-size:11px;color:var(--amber);font-weight:700;padding:0 6px;white-space:nowrap;">📋 צפייה בלבד</span>
@@ -1067,10 +860,9 @@ export function showModal(id) { document.getElementById(id).classList.remove('hi
 export function hideModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 export function openImportAssociationModal() {
-    // Reset state
     document.getElementById('docFilePreview').textContent = 'לא נבחר קובץ';
-    document.getElementById('docUploadBtn').disabled = true;
-    document.getElementById('documentInput').value = '';
+    document.getElementById('docUploadBtn').disabled      = true;
+    document.getElementById('documentInput').value        = '';
     document.getElementById('docTargetFolder').textContent = S.currentFolder || '(ללא תיקייה)';
     showModal('importAssociationModal');
 }
@@ -1078,7 +870,7 @@ export function openImportAssociationModal() {
 export function toast(msg, type = '') {
     const t = document.getElementById('toast');
     t.textContent = msg;
-    t.className = 'toast show' + (type ? ' '+type : '');
+    t.className   = 'toast show' + (type ? ' ' + type : '');
     clearTimeout(t._t);
     t._t = setTimeout(() => t.classList.remove('show'), 3200);
 }
@@ -1087,8 +879,8 @@ export function toast(msg, type = '') {
    MOBILE SIDEBAR
 ================================================================ */
 export function toggleMobileSidebar() {
-    const sb  = document.querySelector('.sidebar');
-    const ov  = document.getElementById('mobileSidebarOverlay');
+    const sb   = document.querySelector('.sidebar');
+    const ov   = document.getElementById('mobileSidebarOverlay');
     const open = sb.classList.toggle('mobile-open');
     ov.classList.toggle('active', open);
 }

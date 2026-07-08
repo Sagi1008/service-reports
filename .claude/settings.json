@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(grep -r \"client_id\\\\|clientId\\\\|oauth\" \"C:/Users/Sagas/AppData/Roaming/npm/node_modules/firebase-tools/lib/auth.js\" 2>&1 | grep -v \"^Binary\" | head -20)",
+      "Read(//c/Users/Sagas/AppData/Roaming/npm/node_modules/firebase-tools/lib/**)",
+      "Bash(rm set-cors.js)",
+      "Bash(npm uninstall *)"
+    ]
+  }
+}

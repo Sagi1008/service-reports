@@ -1,0 +1,104 @@
+/* ================================================================
+   DESIGN TOKENS — Premium Dark
+================================================================ */
+:root {
+    /* Brand */
+    --brand:          #2563eb;
+    --brand-dark:     #1d4ed8;
+    --brand-light:    rgba(37, 99, 235, 0.14);
+    --brand-muted:    rgba(37, 99, 235, 0.08);
+    --brand-ring:     rgba(37, 99, 235, 0.28);
+    --brand-glow:     rgba(37, 99, 235, 0.22);
+
+    /* Status — tuned for dark backgrounds */
+    --green:          #10b981;
+    --green-bg:       rgba(16, 185, 129, 0.10);
+    --green-border:   rgba(16, 185, 129, 0.35);
+    --red:            #f87171;
+    --red-bg:         rgba(248, 113, 113, 0.10);
+    --red-border:     rgba(248, 113, 113, 0.35);
+    --amber:          #f59e0b;
+    --amber-bg:       rgba(245, 158, 11, 0.10);
+    --amber-border:   rgba(245, 158, 11, 0.30);
+
+    /* Text hierarchy */
+    --ink:            #dce8f5;
+    --ink-2:          #b8cfe8;
+    --ink-3:          #8aaac8;
+    --muted:          #5d7a94;
+    --muted-light:    #3d5468;
+
+    /* Borders */
+    --border:         rgba(255, 255, 255, 0.07);
+    --border-mid:     rgba(255, 255, 255, 0.13);
+    --border-light:   rgba(255, 255, 255, 0.04);
+    --border-low:     rgba(255, 255, 255, 0.07);
+
+    /* Surface layers */
+    --surface:        #0c1827;
+    --surface-2:      #0f1f30;
+    --surface-3:      #152437;
+    --bg:             #07101e;
+
+    /* Sidebar */
+    --sb-bg:          #060d1b;
+    --sb-hover:       #0d1c2c;
+    --sb-active-bg:   rgba(37, 99, 235, 0.13);
+    --sb-border:      rgba(255, 255, 255, 0.055);
+    --sb-text:        #4e6a80;
+    --sb-text-bright: #8aaac4;
+    --sb-text-active: #dce8f5;
+    --sb-accent:      #2563eb;
+
+    /* Sizing */
+    --sidebar-w:  260px;
+    --radius:     12px;
+    --radius-sm:  8px;
+    --radius-xs:  6px;
+
+    /* Shadows */
+    --shadow-sm:  0 1px 3px rgba(0,0,0,0.35);
+    --shadow:     0 2px 8px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.25);
+    --shadow-md:  0 6px 24px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.3);
+    --shadow-lg:  0 16px 60px rgba(0,0,0,0.7), 0 4px 14px rgba(0,0,0,0.4);
+}
+
+/* ================================================================
+   BASE RESET
+================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+button {
+    min-height: 44px;
+    touch-action: manipulation;
+    cursor: pointer;
+    font-family: 'Heebo', sans-serif;
+}
+
+html { height: -webkit-fill-available; }
+
+/* ================================================================
+   UTILITY
+================================================================ */
+.hidden { display: none !important; }
+
+/* ================================================================
+   SHARED KEYFRAMES
+================================================================ */
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.35; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes modal-in {
+    from { transform: scale(0.96) translateY(8px); opacity: 0; }
+    to   { transform: scale(1) translateY(0);      opacity: 1; }
+}
+@keyframes dash-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+@keyframes glow-pulse-brand {
+    0%, 100% { box-shadow: 0 0 10px rgba(37,99,235,0.18); }
+    50%       { box-shadow: 0 0 22px rgba(37,99,235,0.32); }
+}

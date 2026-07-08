@@ -1,4 +1,4 @@
-import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport } from './api.js';
+import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, apiSaveDraftFields, apiClearDraftFields } from './api.js';
 import {
     showModal, hideModal, toast,
     setReportMode, renderTasks, renderImages, renderReportAppendices,
@@ -7,37 +7,16 @@ import {
     closeMobileSidebar, markUnsaved, confirmUnsaved,
     collectTasks, collectReportAppendices,
 } from './ui.js';
+import { preloadLogo, downloadPDF } from './utils/pdfGenerator.js';
 
-/* ================================================================
-   LOGO — preload assets/logo.png as a data URL for PDF embedding
-================================================================ */
-let _logoPromise = null;
-
-export function preloadLogo() {
-    if (!_logoPromise) {
-        _logoPromise = new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-                try {
-                    const c = document.createElement('canvas');
-                    c.width  = img.naturalWidth  || 400;
-                    c.height = img.naturalHeight || 150;
-                    c.getContext('2d').drawImage(img, 0, 0);
-                    resolve(c.toDataURL('image/png'));
-                } catch { resolve(null); }
-            };
-            img.onerror = () => resolve(null);
-            img.src = 'assets/logo.png';
-        });
-    }
-    return _logoPromise;
-}
+// Re-export so app.js imports continue to resolve from this module
+export { preloadLogo, downloadPDF };
 
 /* ================================================================
    MODULE STATE
 ================================================================ */
-let _importDefaultAs   = 'report'; // pre-selects radio in import preview modal
-let _pendingAssetAction = null;    // { type, id, action: 'move'|'copy' }
+let _importDefaultAs    = 'report';
+let _pendingAssetAction = null;
 
 /* ================================================================
    AUTH HELPERS
@@ -48,30 +27,21 @@ function _techName() {
     return u.displayName || u.email?.split('@')[0] || '';
 }
 
-/** Enforces read-only mode on the report editor for non-authorised users.
- *  Must be called AFTER renderTasks/updateToolbar have populated the DOM. */
 function _applyReadOnlyMode(r) {
     const editable = canEditReport(r);
     const area     = document.getElementById('reportArea');
     if (!area) return;
 
-    // Remove any previous banner
     area.querySelector('.readonly-banner')?.remove();
 
     if (editable) {
-        // Re-enable everything in case user switched from a read-only report
-        area.querySelectorAll('input, textarea, select').forEach(el => {
-            el.disabled = false;
-        });
+        area.querySelectorAll('input, textarea, select').forEach(el => { el.disabled = false; });
         area.querySelectorAll('.sbtn, .task-del-btn, .section-del-btn, .image-del-btn, .seg-btn, .btn-add-task, .add-image-btn').forEach(el => {
-            el.disabled = false;
-            el.style.pointerEvents = '';
-            el.style.opacity = '';
+            el.disabled = false; el.style.pointerEvents = ''; el.style.opacity = '';
         });
         if (S.pad)         { try { S.pad.on(); }         catch(e) {} }
         if (S.customerPad) { try { S.customerPad.on(); } catch(e) {} }
     } else {
-        // Inject a read-only banner at the top
         const banner = document.createElement('div');
         banner.className = 'readonly-banner';
         banner.style.cssText = [
@@ -88,18 +58,10 @@ function _applyReadOnlyMode(r) {
         ].join(';');
         banner.textContent = '📋 מצב צפייה בלבד — הדוח שייך לטכנאי אחר ואינו ניתן לעריכה';
         area.insertBefore(banner, area.firstChild);
-
-        // Disable all form inputs
-        area.querySelectorAll('input, textarea, select').forEach(el => {
-            el.disabled = true;
-        });
-        // Disable interactive buttons (status, delete, add-task, image upload)
+        area.querySelectorAll('input, textarea, select').forEach(el => { el.disabled = true; });
         area.querySelectorAll('.sbtn, .task-del-btn, .section-del-btn, .image-del-btn, .seg-btn, .btn-add-task, .add-image-btn').forEach(el => {
-            el.disabled = true;
-            el.style.pointerEvents = 'none';
-            el.style.opacity = '0.4';
+            el.disabled = true; el.style.pointerEvents = 'none'; el.style.opacity = '0.4';
         });
-        // Lock signature pads
         if (S.pad)         { try { S.pad.off(); }         catch(e) {} }
         if (S.customerPad) { try { S.customerPad.off(); } catch(e) {} }
     }
@@ -108,86 +70,133 @@ function _applyReadOnlyMode(r) {
 /* ================================================================
    NEW REPORT MODAL
 ================================================================ */
+/* ================================================================
+   NEW REPORT WIZARD (3-step: service type → location → template)
+================================================================ */
+const _NR = { serviceType: '', folder: null, tplId: null };
+const _NR_LABELS = { routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר' };
+
+function _nrShowStep(n) {
+    [1, 2, 3].forEach(i => {
+        const el = document.getElementById('nrStep' + i);
+        if (el) el.style.display = i === n ? '' : 'none';
+    });
+}
+
 export function showNewReportModal() {
-    document.getElementById('newReportName').value = '';
-    const list = document.getElementById('newReportTplList');
-
-    // When inside a folder, show only that folder's templates
-    const allTpls = Object.values(S.templates);
-    const tpls = S.currentFolder
-        ? allTpls.filter(t => t.folder === S.currentFolder)
-        : allTpls;
-
-    if (!tpls.length) {
-        const msg = S.currentFolder ? 'אין תבניות זמינות לאתר זה' : 'אין תבניות שמורות';
-        list.innerHTML = `<div style="font-size:12px;color:#5d7a94;padding:10px 0;text-align:center;">${msg}</div>`;
-    } else {
-        list.innerHTML = tpls.map(t => {
-            return `<div class="tpl-opt" data-tpl="${t.id}" onclick="selectNewReportTpl(this,'${t.id}')">
-                        <span>${esc(t.name)}</span>
-                        <span style="font-size:11px;color:var(--slate-400);margin-right:auto;">${(t.tasks||[]).length} משימות</span>
-                    </div>`;
-        }).join('');
-    }
+    _NR.serviceType = '';
+    _NR.folder      = S.currentFolder !== undefined ? S.currentFolder : null;
+    _NR.tplId       = null;
+    document.querySelectorAll('#nrStep1 .nr-type-btn').forEach(b => b.classList.remove('selected'));
+    const nextBtn = document.getElementById('nrStep1Next');
+    if (nextBtn) nextBtn.disabled = true;
+    _nrShowStep(1);
     showModal('newReportModal');
-    setTimeout(() => document.getElementById('newReportName').focus(), 80);
 }
 
-export function selectNewReportTpl(el, id) {
-    document.querySelectorAll('#newReportTplList .tpl-opt').forEach(e => e.classList.remove('selected'));
-    if (el.dataset.chosen === '1') {
-        el.dataset.chosen = '';
-    } else {
-        el.classList.add('selected');
-        el.dataset.chosen = '1';
-    }
+export function nrSelectType(el, val) {
+    _NR.serviceType = val;
+    document.querySelectorAll('#nrStep1 .nr-type-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    const btn = document.getElementById('nrStep1Next');
+    if (btn) btn.disabled = false;
 }
 
-export async function confirmNewReport() {
-    const name = document.getElementById('newReportName').value.trim();
-    if (!name) { toast('אנא הכנס שם לדוח', 'error'); return; }
+export function nrGoStep1() { _nrShowStep(1); }
 
-    const chosenTplEl = document.querySelector('#newReportTplList .tpl-opt[data-chosen="1"]');
-    const tplId = chosenTplEl ? chosenTplEl.dataset.tpl : null;
+export function nrGoStep2() {
+    const folders = Object.keys(S.folders);
+    const list    = document.getElementById('nrFolderList');
+    list.innerHTML = [
+        `<div class="folder-opt${_NR.folder === null ? ' selected' : ''}" onclick="nrSelectFolder(this, null)">
+            <span style="font-size:15px;">🌐</span> ללא אתר ספציפי
+         </div>`,
+        ...folders.map(name =>
+            `<div class="folder-opt${_NR.folder === name ? ' selected' : ''}" onclick="nrSelectFolder(this,'${esc(name)}')">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                ${esc(name)}
+             </div>`)
+    ].join('');
+    const btn = document.getElementById('nrStep2NextBtn');
+    if (btn) btn.textContent = _NR.serviceType === 'routine' ? 'המשך ←' : 'צור דוח ✓';
+    _nrShowStep(2);
+}
 
-    const id = uid();
-    const t  = today();
-    const tpl = tplId ? S.templates[tplId] : null;
+export function nrSelectFolder(el, name) {
+    _NR.folder = name;
+    document.querySelectorAll('#nrFolderList .folder-opt').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+export function nrGoStep3() {
+    if (_NR.serviceType !== 'routine') { nrConfirm(); return; }
+    const tpls = Object.values(S.templates)
+        .filter(t => !_NR.folder || t.folder === _NR.folder);
+    const list = document.getElementById('nrTplList');
+    list.innerHTML = [
+        `<div class="tpl-opt${_NR.tplId === null ? ' selected' : ''}" onclick="nrSelectTpl(this, null)">
+            <span>📄</span>
+            <span>דוח ריק (ללא תבנית)</span>
+         </div>`,
+        ...tpls.map(t =>
+            `<div class="tpl-opt${_NR.tplId === t.id ? ' selected' : ''}" onclick="nrSelectTpl(this,'${t.id}')">
+                <span>📋</span>
+                <span>${esc(t.name)}</span>
+                <span style="font-size:11px;color:var(--slate-400);margin-right:auto;">${(t.tasks||[]).length} משימות</span>
+             </div>`)
+    ].join('');
+    _nrShowStep(3);
+}
+
+export function nrSelectTpl(el, id) {
+    _NR.tplId = id;
+    document.querySelectorAll('#nrTplList .tpl-opt').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+export async function nrConfirm() {
+    if (!_NR.serviceType) { toast('אנא בחר סוג טיפול', 'error'); return; }
+    const tpl    = _NR.tplId ? S.templates[_NR.tplId] : null;
+    const id     = uid();
+    const t      = today();
+    const folder = _NR.folder;
 
     S.reports[id] = {
         id,
-        title:       name,
-        customer:    '',
-        site:        '',
-        visitDate:   t,
-        number:      '',
-        startTime:   '',
-        endTime:     '',
-        totalHours:  '',
-        serviceType: tpl ? (tpl.serviceType || '') : '',
-        permComments:  tpl ? (tpl.permComments || '') : '',
-        finalComments: '',
-        tasks: tpl ? tpl.tasks.map(tk => ({
-            id: 'tk_' + (++S.taskCounter),
-            description: tk.description,
-            status:   'pending',
-            comments: tk.comments || '',
-        })) : [],
-        images: [],
-        tech: { name: _techName(), compDate: t, sig: '' },
-        customerSig: '',
-        folder:    S.currentFolder || null,
-        createdBy: S.currentUser?.email || '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        title:            _NR_LABELS[_NR.serviceType] || 'דוח חדש',
+        customer:         '',
+        site:             folder || '',
+        visitDate:        t,
+        number:           '',
+        startTime:        '',
+        endTime:          '',
+        totalHours:       '',
+        serviceType:      _NR.serviceType,
+        periodicInterval: tpl ? (tpl.periodicInterval || '') : '',
+        permComments:     tpl ? (tpl.permComments     || '') : '',
+        finalComments:    '',
+        tasks: (tpl ? tpl.tasks : []).map(tk => {
+            if (tk.type === 'section') return { id: 'sec_' + (++S.taskCounter), type: 'section', title: tk.title };
+            if (tk.type === 'range')   return { id: 'tk_' + (++S.taskCounter), type: 'range', description: tk.description, minValue: tk.minValue ?? null, maxValue: tk.maxValue ?? null, unit: tk.unit || '', reading: null, status: 'pending', comments: '' };
+            return { id: 'tk_' + (++S.taskCounter), type: 'task', description: tk.description, status: 'pending', comments: tk.comments || '' };
+        }),
+        images:       [],
+        appendices:   [],
+        tech:         { name: _techName(), compDate: t, sig: '' },
+        customerSig:  '',
+        folder,
+        createdBy:    S.currentUser?.email || '',
+        createdAt:    new Date().toISOString(),
+        updatedAt:    new Date().toISOString(),
     };
 
-    if (S.currentFolder) {
-        if (!S.folders[S.currentFolder]) S.folders[S.currentFolder] = [];
-        S.folders[S.currentFolder].push(id);
+    if (folder) {
+        if (!S.folders[folder]) S.folders[folder] = [];
+        if (!S.folders[folder].includes(id)) S.folders[folder].push(id);
     }
+    S.currentFolder = folder;
 
-    persist();   // saves taskCounter
+    persist();
     hideModal('newReportModal');
     openReport(id);
     renderSidebar();
@@ -202,19 +211,155 @@ export async function confirmNewReport() {
 }
 
 /* ================================================================
+   AUTO-SAVE DRAFT
+   – localStorage write is immediate (survives browser refresh / screen-lock reload)
+   – Firestore write is debounced 2.5 s (cross-device / localStorage-clear backup)
+================================================================ */
+let _draftTimer = null;
+
+function _collectDraftSnapshot() {
+    const id = S.currentId;
+    if (!id) return null;
+    return {
+        id,
+        savedAt:          new Date().toISOString(),
+        title:            document.getElementById('fTitle')?.value            ?? '',
+        customer:         document.getElementById('fCustomer')?.value         ?? '',
+        site:             document.getElementById('fSite')?.value             ?? '',
+        visitDate:        document.getElementById('fVisitDate')?.value        ?? '',
+        number:           document.getElementById('fNumber')?.value           ?? '',
+        startTime:        document.getElementById('fStartTime')?.value        ?? '',
+        endTime:          document.getElementById('fEndTime')?.value          ?? '',
+        totalHours:       document.getElementById('fTotalHours')?.value       ?? '',
+        serviceType:      document.getElementById('fServiceType')?.value      ?? '',
+        periodicInterval: document.getElementById('fPeriodicInterval')?.value ?? '',
+        permComments:     document.getElementById('fPermComments')?.value     ?? '',
+        finalComments:    document.getElementById('fFinalComments')?.value    ?? '',
+        techName:         document.getElementById('fTechName')?.value         ?? '',
+        compDate:         document.getElementById('fCompDate')?.value         ?? '',
+        tasks: collectTasks().map(t => ({
+            id:       t.id,
+            type:     t.type,
+            status:   t.status,
+            comments: t.comments,
+            reading:  t.type === 'range' ? (t.reading ?? null) : undefined,
+        })),
+    };
+}
+
+export function saveDraft() {
+    const id = S.currentId;
+    if (!id) return;
+    const snap = _collectDraftSnapshot();
+    if (!snap) return;
+    try { localStorage.setItem('trs_draft_' + id, JSON.stringify(snap)); } catch (e) {
+        console.warn('[DRAFT] localStorage write failed:', e.message);
+    }
+    if (_draftTimer) clearTimeout(_draftTimer);
+    _draftTimer = setTimeout(() => {
+        _draftTimer = null;
+        apiSaveDraftFields(id, snap).catch(() => {});
+    }, 2500);
+}
+
+export function recoverDraft(id) {
+    const raw = localStorage.getItem('trs_draft_' + id);
+    if (!raw) return;
+    let draft;
+    try { draft = JSON.parse(raw); } catch { return; }
+
+    const r = S.reports[id];
+    if (r?.updatedAt && draft.savedAt && draft.savedAt <= r.updatedAt) {
+        localStorage.removeItem('trs_draft_' + id);
+        return;
+    }
+
+    const _setVal = (elId, val) => {
+        if (val == null) return;
+        const el = document.getElementById(elId);
+        if (el) el.value = val;
+    };
+
+    _setVal('fTitle',            draft.title);
+    _setVal('fCustomer',         draft.customer);
+    _setVal('fSite',             draft.site);
+    _setVal('fVisitDate',        draft.visitDate);
+    _setVal('fNumber',           draft.number);
+    _setVal('fStartTime',        draft.startTime);
+    _setVal('fEndTime',          draft.endTime);
+    _setVal('fTotalHours',       draft.totalHours);
+    _setVal('fPeriodicInterval', draft.periodicInterval);
+    _setVal('fFinalComments',    draft.finalComments);
+    _setVal('fTechName',         draft.techName);
+    _setVal('fCompDate',         draft.compDate);
+
+    if (draft.permComments != null) {
+        _setVal('fPermComments', draft.permComments);
+        const el = document.getElementById('fPermComments');
+        if (el && window.autoExpand) setTimeout(() => window.autoExpand(el), 0);
+    }
+
+    if (draft.serviceType != null) {
+        _setVal('fServiceType', draft.serviceType);
+        const badge = document.getElementById('serviceTypeDisplay');
+        if (badge) badge.textContent = _NR_LABELS[draft.serviceType] || draft.serviceType || '—';
+        const row = document.getElementById('periodicIntervalRow');
+        if (row) row.style.display = draft.serviceType === 'routine' ? '' : 'none';
+    }
+
+    // Restore task states (status, comments, range readings)
+    for (const dt of (draft.tasks || [])) {
+        if (dt.type === 'section') continue;
+        const taskEl = document.querySelector(`#tasksList [data-id="${dt.id}"]`);
+        if (!taskEl) continue;
+
+        const commentEl = taskEl.querySelector('.task-comment');
+        if (commentEl && dt.comments != null) commentEl.value = dt.comments;
+
+        if (dt.type === 'range') {
+            const inp = taskEl.querySelector('.task-reading-input');
+            if (inp && dt.reading != null) {
+                inp.value = dt.reading;
+                if (window.setRangeReading) window.setRangeReading(inp);
+            }
+        } else {
+            const status = dt.status || 'pending';
+            taskEl.dataset.status = status;
+            taskEl.classList.remove('performed', 'not-performed');
+            taskEl.querySelectorAll('.sbtn').forEach(b => b.classList.remove('active'));
+            if (status === 'performed') {
+                taskEl.classList.add('performed');
+                taskEl.querySelector('.sbtn-yes')?.classList.add('active');
+            } else if (status === 'not_performed') {
+                taskEl.classList.add('not-performed');
+                taskEl.querySelector('.sbtn-no')?.classList.add('active');
+            }
+        }
+    }
+
+    markUnsaved();
+    toast('הדוח שוחזר אוטומטית', 'success');
+}
+
+export function clearDraft(id) {
+    if (!id) return;
+    localStorage.removeItem('trs_draft_' + id);
+    if (_draftTimer) { clearTimeout(_draftTimer); _draftTimer = null; }
+    apiClearDraftFields(id).catch(() => {});
+}
+
+/* ================================================================
    REPORTS – CRUD
 ================================================================ */
 export function openReport(id) {
     if (!confirmUnsaved()) return;
     closeMobileSidebar();
-    // On desktop, ensure the reports tab is active so the report editor is visible
-    if (window.innerWidth > 768 && window.switchTab) window.switchTab('reports');
+    if (window.switchTab) window.switchTab('reports');
     S.currentId   = id;
     S.currentMode = 'report';
     S.unsaved     = false;
     const r = S.reports[id];
     if (!r) {
-        // Report not in memory — server may need restart after migration
         setReportMode('report');
         updateToolbar();
         renderSidebar();
@@ -224,14 +369,14 @@ export function openReport(id) {
 
     setReportMode('report');
 
-    document.getElementById('fTitle').value        = r.title        || '';
-    document.getElementById('fCustomer').value     = r.customer     || '';
-    document.getElementById('fSite').value         = r.site         || '';
-    document.getElementById('fVisitDate').value    = r.visitDate    || '';
-    document.getElementById('fNumber').value       = r.number       || '';
-    document.getElementById('fStartTime').value    = r.startTime    || '';
-    document.getElementById('fEndTime').value      = r.endTime      || '';
-    document.getElementById('fTotalHours').value   = r.totalHours   || '';
+    document.getElementById('fTitle').value         = r.title        || '';
+    document.getElementById('fCustomer').value      = r.customer     || '';
+    document.getElementById('fSite').value          = r.site         || '';
+    document.getElementById('fVisitDate').value     = r.visitDate    || '';
+    document.getElementById('fNumber').value        = r.number       || '';
+    document.getElementById('fStartTime').value     = r.startTime    || '';
+    document.getElementById('fEndTime').value       = r.endTime      || '';
+    document.getElementById('fTotalHours').value    = r.totalHours   || '';
     document.getElementById('fPermComments').value  = r.permComments  || '';
     if (window.autoExpand) setTimeout(() => window.autoExpand(document.getElementById('fPermComments')), 0);
     document.getElementById('fFinalComments').value = r.finalComments || '';
@@ -240,40 +385,36 @@ export function openReport(id) {
     document.querySelectorAll('#serviceTypePicker .seg-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.val === _stVal);
     });
-    const techField = document.getElementById('fTechName');
-    techField.value = r.tech?.name || _techName();
-    document.getElementById('fCompDate').value     = r.tech?.compDate || '';
+    const _stDisplay = document.getElementById('serviceTypeDisplay');
+    if (_stDisplay) _stDisplay.textContent = _NR_LABELS[_stVal] || _stVal || '—';
+    const _intervalEl  = document.getElementById('fPeriodicInterval');
+    const _intervalRow = document.getElementById('periodicIntervalRow');
+    if (_intervalEl)  _intervalEl.value = r.periodicInterval || '';
+    if (_intervalRow) _intervalRow.style.display = _stVal === 'routine' ? '' : 'none';
+    document.getElementById('fTechName').value = r.tech?.name || _techName();
+    document.getElementById('fCompDate').value = r.tech?.compDate || '';
 
     renderTasks(r.tasks || []);
     renderImages(r.images || []);
     renderReportAppendices(r.appendices || []);
 
-    if (S.pad) {
-        S.pad.clear();
-        _loadSigToPad(S.pad, r.tech?.sig);
-    }
-    if (S.customerPad) {
-        S.customerPad.clear();
-        _loadSigToPad(S.customerPad, r.customerSig);
-    }
+    if (S.pad)         { S.pad.clear();         _loadSigToPad(S.pad,         r.tech?.sig);  }
+    if (S.customerPad) { S.customerPad.clear(); _loadSigToPad(S.customerPad, r.customerSig); }
 
     updateToolbar();
     renderSidebar();
     document.getElementById('reportArea').scrollTop = 0;
     _applyReadOnlyMode(r);
+    recoverDraft(id);
 }
 
 export async function saveReport() {
-    // Capture before any async gap — onSnapshot may clear S.currentId during uploads
     const savedId = S.currentId;
     if (!savedId || S.currentMode !== 'report') return;
     const r = S.reports[savedId];
     if (!r) { toast('הדוח לא נמצא בזיכרון – רענן את הדף', 'error'); return; }
 
-    if (!canEditReport(r)) {
-        toast('אין הרשאה — הדוח שייך לטכנאי אחר', 'error');
-        return;
-    }
+    if (!canEditReport(r)) { toast('אין הרשאה — הדוח שייך לטכנאי אחר', 'error'); return; }
 
     const overlay    = document.getElementById('loadingOverlay');
     const overlayMsg = document.getElementById('loadingMsg');
@@ -282,7 +423,6 @@ export async function saveReport() {
 
     let saveOk = false;
     try {
-        // DOM collection is inside try so any null-element error is caught cleanly
         r.title         = document.getElementById('fTitle')?.value.trim()        || r.title        || 'דוח ללא שם';
         r.customer      = document.getElementById('fCustomer')?.value             ?? r.customer;
         r.site          = document.getElementById('fSite')?.value                 ?? r.site;
@@ -291,7 +431,8 @@ export async function saveReport() {
         r.startTime     = document.getElementById('fStartTime')?.value            ?? r.startTime    ?? '';
         r.endTime       = document.getElementById('fEndTime')?.value              ?? r.endTime      ?? '';
         r.totalHours    = document.getElementById('fTotalHours')?.value           ?? r.totalHours   ?? '';
-        r.serviceType   = document.getElementById('fServiceType')?.value          || r.serviceType  || '';
+        r.serviceType      = document.getElementById('fServiceType')?.value         || r.serviceType  || '';
+        r.periodicInterval = document.getElementById('fPeriodicInterval')?.value   || '';
         r.permComments  = document.getElementById('fPermComments')?.value         ?? r.permComments;
         r.finalComments = document.getElementById('fFinalComments')?.value        ?? r.finalComments;
         r.tasks         = collectTasks();
@@ -309,40 +450,40 @@ export async function saveReport() {
         const saved = await apiSaveReport(r);
         r._backendId = saved.id;
         saveOk = true;
+        clearDraft(savedId);
     } catch (e) {
         console.error('[SAVE] failed:', e);
         toast('שגיאה בשמירה לשרת – בדוק שהשרת פועל', 'error');
     } finally {
         overlay?.classList.add('hidden');
-        // Always restore UI state — even on error or onSnapshot-driven S.currentId clear
         S.currentId   = savedId;
         S.currentMode = 'report';
         S.unsaved     = !saveOk;
         updateToolbar();
     }
 
-    if (saveOk) {
-        renderSidebar();
-        toast('הדוח נשמר ✓', 'success');
-    }
+    if (saveOk) { renderSidebar(); toast('הדוח נשמר ✓', 'success'); }
 }
 
 export function clearReport() {
     if (!S.currentId) return;
     if (!confirm('לאפס את סטטוסי המשימות וההערות?\n(המשימות עצמן נשמרות)')) return;
+    clearDraft(S.currentId);
 
-    // Reset every task's status and comments in the DOM
     document.querySelectorAll('#tasksList .task-item').forEach(item => {
         item.dataset.status = 'pending';
-        item.classList.remove('performed', 'not-performed');
-        item.querySelectorAll('.sbtn').forEach(b => b.classList.remove('active'));
+        if (item.dataset.type === 'range') {
+            const inp = item.querySelector('.task-reading-input');
+            if (inp) { inp.value = ''; inp.classList.remove('in-range', 'out-of-range'); }
+        } else {
+            item.classList.remove('performed', 'not-performed');
+            item.querySelectorAll('.sbtn').forEach(b => b.classList.remove('active'));
+        }
         const comment = item.querySelector('.task-comment');
         if (comment) comment.value = '';
     });
 
-    // Clear the final comments field
     document.getElementById('fFinalComments').value = '';
-
     markUnsaved();
     toast('המשימות אופסו ✓', 'success');
 }
@@ -355,10 +496,9 @@ export function deleteReportPrompt() {
 export function confirmDelete() {
     if (!S.currentId) return;
     const id = S.currentId;
+    clearDraft(id);
     _markDeleted(id);
-    for (const fn in S.folders) {
-        S.folders[fn] = S.folders[fn].filter(x => x !== id);
-    }
+    for (const fn in S.folders) S.folders[fn] = S.folders[fn].filter(x => x !== id);
     delete S.reports[id];
     S.currentId = null;
     S.unsaved   = false;
@@ -371,10 +511,9 @@ export function confirmDelete() {
 }
 
 export function deleteReportById(id) {
+    clearDraft(id);
     _markDeleted(id);
-    for (const fn in S.folders) {
-        S.folders[fn] = S.folders[fn].filter(x => x !== id);
-    }
+    for (const fn in S.folders) S.folders[fn] = S.folders[fn].filter(x => x !== id);
     delete S.reports[id];
     persist();
     renderSidebar();
@@ -405,7 +544,6 @@ export function showTemplateEditor(id, folderName = null) {
     renderTplAppendices(tpl ? (tpl.appendices || []) : []);
     closeMobileSidebar();
 
-    // On desktop: switch to reports tab without triggering showDashboard
     if (window.innerWidth > 768) {
         document.querySelectorAll('.dtab-btn').forEach(b =>
             b.classList.toggle('dtab-active', b.dataset.dtab === 'reports'));
@@ -417,13 +555,11 @@ export function showTemplateEditor(id, folderName = null) {
         if (rArea) rArea.style.display = '';
     }
 
-    // Show template editor page, hide other report-area views
     document.getElementById('dashboardView').style.display = 'none';
     document.getElementById('emptyState').style.display    = 'none';
     document.getElementById('reportEditor').style.display  = 'none';
     document.getElementById('tplEditorPage').style.display = 'block';
     document.getElementById('tplEditorPage').scrollTop     = 0;
-
     setTimeout(() => document.getElementById('tplName').focus(), 80);
 }
 
@@ -436,18 +572,27 @@ export function saveTplEditor() {
         if (el.dataset.type === 'section') {
             return { type: 'section', title: el.querySelector('.section-title-input').value.trim() };
         }
+        if (el.dataset.type === 'range') {
+            const minRaw = el.querySelector('.tpl-range-min')?.value;
+            const maxRaw = el.querySelector('.tpl-range-max')?.value;
+            return {
+                type:        'range',
+                description: el.querySelector('.tpl-range-desc')?.value.trim() || '',
+                minValue:    minRaw !== '' && minRaw != null ? Number(minRaw) : null,
+                maxValue:    maxRaw !== '' && maxRaw != null ? Number(maxRaw) : null,
+                unit:        el.querySelector('.tpl-range-unit')?.value.trim() || '',
+            };
+        }
         return { type: 'task', description: el.querySelector('.tpl-task-input').value.trim(), comments: '' };
     }).filter(t => t.type === 'section' ? t.title : t.description);
 
     const existingId = document.getElementById('tplEditorId').value;
-    const id = existingId || uid();
-    const folderVal = document.getElementById('tplEditorFolder').value || null;
+    const id         = existingId || uid();
+    const folderVal  = document.getElementById('tplEditorFolder').value || null;
 
     S.templates[id] = {
-        id,
-        name,
-        folder: folderVal,
-        serviceType: document.getElementById('tplServiceType')?.value || null,
+        id, name, folder: folderVal,
+        serviceType:  document.getElementById('tplServiceType')?.value || null,
         permComments: document.getElementById('tplPermComments').value,
         tasks,
         appendices: collectTplAppendices(),
@@ -477,32 +622,23 @@ export async function createReportFromTemplate(tplId, folderName = null) {
     const tpl = S.templates[tplId];
     if (!tpl) return;
 
-    const id = uid();
-    const t  = today();
+    const id           = uid();
+    const t            = today();
     const targetFolder = folderName || null;
     S.reports[id] = {
-        id,
-        title:        tpl.name,
-        customer:     '',
-        site:         '',
-        visitDate:    t,
-        number:       '',
-        startTime:    '',
-        endTime:      '',
-        totalHours:   '',
-        serviceType:  tpl.serviceType || '',
-        permComments: tpl.permComments || '',
-        tasks: tpl.tasks.map(tk => tk.type === 'section'
-            ? { id: 'sec_' + (++S.taskCounter), type: 'section', title: tk.title }
-            : { id: 'tk_'  + (++S.taskCounter), type: 'task', description: tk.description, status: 'pending', comments: '' }
-        ),
+        id, title: tpl.name, customer: '', site: '',
+        visitDate: t, number: '', startTime: '', endTime: '', totalHours: '',
+        serviceType:      tpl.serviceType || '',
+        periodicInterval: '',
+        permComments:     tpl.permComments || '',
+        tasks: tpl.tasks.map(tk => {
+            if (tk.type === 'section') return { id: 'sec_' + (++S.taskCounter), type: 'section', title: tk.title };
+            if (tk.type === 'range')   return { id: 'tk_' + (++S.taskCounter), type: 'range', description: tk.description, minValue: tk.minValue ?? null, maxValue: tk.maxValue ?? null, unit: tk.unit || '', reading: null, status: 'pending', comments: '' };
+            return { id: 'tk_' + (++S.taskCounter), type: 'task', description: tk.description, status: 'pending', comments: '' };
+        }),
         appendices: (tpl.appendices || []).map(app => ({
-            id:       app.id,
-            title:    app.title,
-            fileName: app.fileName,
-            fileSize: app.fileSize,
-            fileType: app.fileType,
-            fileData: app.fileData,
+            id: app.id, title: app.title, fileName: app.fileName,
+            fileSize: app.fileSize, fileType: app.fileType, fileData: app.fileData,
         })),
         images: [],
         tech: { name: _techName(), compDate: t, sig: '' },
@@ -515,7 +651,7 @@ export async function createReportFromTemplate(tplId, folderName = null) {
         if (!S.folders[targetFolder]) S.folders[targetFolder] = [];
         S.folders[targetFolder].push(id);
     }
-    persist();   // saves taskCounter
+    persist();
     openReport(id);
     renderSidebar();
     toast(`דוח נוצר מתבנית "${tpl.name}"`, 'success');
@@ -539,30 +675,48 @@ export function showSaveAsTemplate() {
 export async function confirmSaveAsTemplate() {
     const name = document.getElementById('saveTplName').value.trim();
     if (!name) { toast('אנא הכנס שם', 'error'); return; }
+    if (!isAdmin()) { toast('רק מנהל מערכת יכול לשמור תבניות', 'error'); return; }
 
-    // collect current tasks
     await saveReport();
     if (!S.currentId) { toast('שגיאה בשמירת הדוח', 'error'); return; }
     const r = S.reports[S.currentId];
+    if (!r) { toast('שגיאה: הדוח לא נמצא', 'error'); return; }
+
     const id = uid();
     S.templates[id] = {
-        id,
-        name,
+        id, name,
+        folder:       r.folder       || null,
+        serviceType:  r.serviceType  || '',
         permComments: r.permComments || '',
-        tasks: (r.tasks || []).map(t => ({ description: t.description, comments: '' })),
+        tasks: (r.tasks || []).map(t => {
+            if (t.type === 'section') return { type: 'section', title: t.title || '' };
+            if (t.type === 'range')   return {
+                type:        'range',
+                description: t.description || '',
+                minValue:    t.minValue  ?? null,
+                maxValue:    t.maxValue  ?? null,
+                unit:        t.unit      || '',
+            };
+            return { type: 'task', description: t.description || '', comments: '' };
+        }),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     };
-    persist();
-    renderSidebar();
-    hideModal('saveTplModal');
-    toast(`תבנית "${name}" נשמרה ✓`, 'success');
+
+    try {
+        persist();
+        renderSidebar();
+        hideModal('saveTplModal');
+        toast('הדוח נשמר כתבנית בהצלחה!', 'success');
+    } catch (e) {
+        console.error('[SAVE_TPL]', e);
+        toast('שגיאה בשמירת התבנית – נסה שוב', 'error');
+    }
 }
 
 /* ================================================================
    HELPERS
 ================================================================ */
-/** Record a frontend uid so hydrate() skips it on next load. */
 function _markDeleted(frontendId) {
     const del = JSON.parse(localStorage.getItem('trs_deleted') || '[]');
     if (!del.includes(frontendId)) {
@@ -597,19 +751,15 @@ export function showMoveFolderModal() {
         if (S.folders[fn].includes(S.currentId)) { cur = fn; break; }
     }
 
-    const list = document.getElementById('folderOptList');
-    list.innerHTML = names.map(name => `
-        <div class="folder-opt ${name === cur ? 'selected' : ''}" onclick="moveToFolder('${esc(name)}')">
-            ${esc(name)}
-        </div>`).join('');
+    document.getElementById('folderOptList').innerHTML = names.map(name =>
+        `<div class="folder-opt ${name === cur ? 'selected' : ''}" onclick="moveToFolder('${esc(name)}')">${esc(name)}</div>`
+    ).join('');
     showModal('moveFolderModal');
 }
 
 export function moveToFolder(name) {
     if (!S.currentId) return;
-    for (const fn in S.folders) {
-        S.folders[fn] = S.folders[fn].filter(x => x !== S.currentId);
-    }
+    for (const fn in S.folders) S.folders[fn] = S.folders[fn].filter(x => x !== S.currentId);
     if (!S.folders[name]) S.folders[name] = [];
     S.folders[name].push(S.currentId);
     if (S.reports[S.currentId]) S.reports[S.currentId].folder = name;
@@ -653,8 +803,7 @@ export function deleteFolderPrompt(name) {
     }
 
     S.pendingDeleteFolder = name;
-    document.getElementById('deleteFolderMsg').textContent =
-        `האם אתה בטוח שברצונך למחוק את התיקייה "${name}"?`;
+    document.getElementById('deleteFolderMsg').textContent = `האם אתה בטוח שברצונך למחוק את התיקייה "${name}"?`;
     showModal('deleteFolderModal');
 }
 
@@ -672,28 +821,22 @@ export function confirmDeleteFolder() {
 }
 
 /* ================================================================
-   IMPORT – DOCUMENT UPLOAD (PDF / IMAGE)
+   IMPORT – DOCUMENT UPLOAD
 ================================================================ */
-
-/** Step 1 – user picked a file; update modal UI and enable Upload button. */
 export function onDocumentFilePicked(e) {
     const file = e.target.files[0];
     if (!file) return;
     document.getElementById('docFilePreview').textContent = file.name;
-    document.getElementById('docUploadBtn').disabled = false;
+    document.getElementById('docUploadBtn').disabled      = false;
 }
 
-/** Step 2 – user confirmed; upload file to the current folder. */
 export async function confirmDocumentUpload() {
     const fileInput  = document.getElementById('documentInput');
     const file       = fileInput.files[0];
     if (!file) return;
-
     const folderName = S.currentFolder || '';
-
     hideModal('importAssociationModal');
     fileInput.value = '';
-
     toast('מעלה מסמך...', '');
     try {
         const attachment = await apiUploadDocument(file, folderName);
@@ -715,10 +858,8 @@ export function importFile(e) {
     const file = e.target.files[0];
     if (!file) return;
     e.target.value = '';
-
-    const ext = file.name.split('.').pop().toLowerCase();
+    const ext  = file.name.split('.').pop().toLowerCase();
     const name = file.name.replace(/\.[^.]+$/, '');
-
     if (ext === 'json') {
         const fr = new FileReader();
         fr.onload = ev => importJSON(ev.target.result, name);
@@ -738,10 +879,10 @@ export function importFile(e) {
 
 export async function importJSON(text, _filename) {
     try {
-        const data = JSON.parse(text);
-        const list = Array.isArray(data) ? data : [data];
+        const data  = JSON.parse(text);
+        const list  = Array.isArray(data) ? data : [data];
         const toSave = [];
-        let lastId = null;
+        let lastId   = null;
         list.forEach(r => {
             if (r && (r.title || r.tasks)) {
                 const id = uid();
@@ -759,7 +900,6 @@ export async function importJSON(text, _filename) {
         if (lastId) openReport(lastId);
         renderSidebar();
         toast(`יובאו ${toSave.length} דוחות ✓`, 'success');
-        // save to backend in the background
         for (const r of toSave) {
             try { const saved = await apiSaveReport(r); r._backendId = saved.id; } catch {}
         }
@@ -768,27 +908,21 @@ export async function importJSON(text, _filename) {
 
 export function importExcel(buffer, filename) {
     try {
-        const wb = XLSX.read(buffer, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
+        const wb   = XLSX.read(buffer, { type: 'array' });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-
-        // detect header row: if first cell looks like header text, skip it
         let startRow = 0;
         if (rows.length && typeof rows[0][0] === 'string') {
             const first = (rows[0][0] || '').toString().trim().toLowerCase();
-            if (['משימה','task','תיאור','description','שם','name','פעולה'].some(h => first.includes(h))) {
-                startRow = 1;
-            }
+            if (['משימה','task','תיאור','description','שם','name','פעולה'].some(h => first.includes(h))) startRow = 1;
         }
-
         const tasks = [];
         for (let i = startRow; i < rows.length; i++) {
-            const row = rows[i];
+            const row  = rows[i];
             const desc = (row[0] || '').toString().trim();
             const comm = (row[1] || '').toString().trim();
             if (desc) tasks.push({ description: desc, comments: comm });
         }
-
         if (!tasks.length) { toast('לא נמצאו משימות בקובץ', 'error'); return; }
         showImportPreview(filename, tasks, 'Excel');
     } catch (err) { toast('שגיאה בקריאת Excel: ' + err.message, 'error'); }
@@ -799,20 +933,16 @@ export function importWord(buffer, filename) {
         const lines = result.value.split('\n')
             .map(l => l.trim())
             .filter(l => l.length > 1 && l.length < 300);
-
         if (!lines.length) { toast('לא נמצא תוכן בקובץ', 'error'); return; }
-
-        const tasks = lines.map(l => ({ description: l, comments: '' }));
-        showImportPreview(filename, tasks, 'Word');
+        showImportPreview(filename, lines.map(l => ({ description: l, comments: '' })), 'Word');
     }).catch(err => toast('שגיאה בקריאת Word: ' + err.message, 'error'));
 }
 
 export function showImportPreview(name, tasks, type) {
     S.importParsed = { name, tasks };
-    document.getElementById('importPreviewInfo').textContent =
-        `יובאו ${tasks.length} משימות מקובץ ${type}`;
-    document.getElementById('importPreviewName').value = name;
-    document.getElementById('importPreviewList').innerHTML = tasks.map((t, i) =>
+    document.getElementById('importPreviewInfo').textContent = `יובאו ${tasks.length} משימות מקובץ ${type}`;
+    document.getElementById('importPreviewName').value       = name;
+    document.getElementById('importPreviewList').innerHTML   = tasks.map((t, i) =>
         `<div class="preview-item">
             <span class="preview-item-num">${i+1}</span>
             <span>${esc(t.description)}</span>
@@ -820,23 +950,21 @@ export function showImportPreview(name, tasks, type) {
         </div>`
     ).join('');
     const asWhat = _importDefaultAs;
-    _importDefaultAs = 'report'; // reset for next time
+    _importDefaultAs = 'report';
     document.querySelector(`input[name="importAs"][value="${asWhat}"]`).checked = true;
     showModal('importPreviewModal');
 }
 
 export async function confirmImport() {
     if (!S.importParsed) return;
-    const name = document.getElementById('importPreviewName').value.trim() || S.importParsed.name;
+    const name   = document.getElementById('importPreviewName').value.trim() || S.importParsed.name;
     const asWhat = document.querySelector('input[name="importAs"]:checked').value;
     const tasks  = S.importParsed.tasks;
 
     if (asWhat === 'template') {
         const id = uid();
         S.templates[id] = {
-            id, name,
-            folder: S.currentFolder || null,
-            permComments: '',
+            id, name, folder: S.currentFolder || null, permComments: '',
             tasks: tasks.map(t => ({ description: t.description, comments: t.comments || '' })),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -847,23 +975,21 @@ export async function confirmImport() {
         toast(`תבנית "${name}" נשמרה ✓`, 'success');
         if (S.currentFolder) showFolderContent(S.currentFolder);
     } else {
-        const id  = uid();
-        const t   = today();
+        const id = uid();
+        const t  = today();
         S.reports[id] = {
             id, title: name, customer: '', site: '',
             visitDate: t, number: '', permComments: '',
             tasks: tasks.map(tk => ({
                 id: 'tk_' + (++S.taskCounter),
-                description: tk.description,
-                status: 'pending',
-                comments: tk.comments || '',
+                description: tk.description, status: 'pending', comments: tk.comments || '',
             })),
             images: [], tech: { name: _techName(), compDate: t, sig: '' },
             folder: null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
-        persist();   // saves taskCounter
+        persist();
         openReport(id);
         renderSidebar();
         hideModal('importPreviewModal');
@@ -895,12 +1021,6 @@ export async function exportJSON() {
 
 /* ================================================================
    SIGNATURE LOADER
-   After the Firebase migration, sigs in S.reports can be either:
-     • a data: URL (just drawn, or freshly loaded from a Storage URL)
-     • an https URL pointing to Firebase Storage (after hydrate / first save)
-   SignaturePad.fromDataURL only accepts data: URLs, so we fetch + convert
-   transparently. Called fire-and-forget — the sig appears a tick later for
-   hydrated reports.
 ================================================================ */
 async function _loadSigToPad(pad, value) {
     if (!pad || !value) return;
@@ -913,365 +1033,25 @@ async function _loadSigToPad(pad, value) {
 }
 
 /* ================================================================
-   PDF – client-side generation (jsPDF + html2canvas)
-   The old FastAPI /api/reports/{id}/pdf endpoint is gone after the Firebase
-   migration. We render the live #reportEditor DOM to canvas, then slice the
-   canvas across A4 pages. RTL/Hebrew renders correctly because we're
-   capturing the already-rendered DOM, not laying out text from scratch.
-================================================================ */
-export async function downloadPDF(returnBlob = false) {
-    if (!S.currentId) { toast('אין דוח פתוח', 'error'); return null; }
-    const r = S.reports[S.currentId];
-    if (!r) { toast('הדוח לא נמצא – רענן את הדף', 'error'); return null; }
-
-    await saveReport();
-
-    const overlay    = document.getElementById('loadingOverlay');
-    const overlayMsg = document.getElementById('loadingMsg');
-    if (overlayMsg) overlayMsg.textContent = 'מייצר PDF...';
-    overlay?.classList.remove('hidden');
-
-    console.log('[PDF] report fields — tech.sig:', r.tech?.sig?.slice(0,60),
-        '| customerSig:', r.customerSig?.slice(0,60),
-        '| images:', (r.images || []).length);
-
-    try {
-        // Pre-convert Firebase Storage https:// URLs → data: URLs so
-        // html2canvas can draw them without cross-origin restrictions.
-        // Logo is loaded in parallel so it's ready when _buildPrintLayout runs.
-        const [logoDataUrl, sigTech, sigCust, ...imgSrcs] = await Promise.all([
-            preloadLogo(),
-            _fetchDataUrl(r.tech?.sig),
-            _fetchDataUrl(r.customerSig),
-            ...(r.images || []).filter(Boolean).map(_fetchDataUrl),
-        ]);
-        console.log('[PDF] resolved — sigTech len:', sigTech?.length,
-            '| sigCust len:', sigCust?.length,
-            '| imgSrcs:', imgSrcs.map(s => s?.length));
-
-        // Mount a hidden, fixed-width print container
-        const wrap = document.createElement('div');
-        wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;' +
-                             'font-family:Heebo,Arial,sans-serif;background:#fff;';
-        wrap.innerHTML = _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs);
-        document.body.appendChild(wrap);
-
-        // Wait for every <img> to fully decode before html2canvas captures the DOM.
-        await Promise.all(
-            Array.from(wrap.querySelectorAll('img[src]')).map(img => {
-                const p = img.decode
-                    ? img.decode().catch(() => {})
-                    : new Promise(resolve => {
-                        if (img.complete && img.naturalHeight > 0) { resolve(); return; }
-                        img.onload = img.onerror = resolve;
-                    });
-                return Promise.race([p, new Promise(r => setTimeout(r, 8000))]);
-            })
-        );
-        await document.fonts.ready;
-
-        const canvas = await html2canvas(wrap, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: '#ffffff',
-            windowWidth: 794,
-            logging: false,
-        });
-        document.body.removeChild(wrap);
-
-        // Single continuous page — width = A4 width, height = proportional to content.
-        // No page cuts, no rows split across pages.
-        const { jsPDF } = window.jspdf;
-        const pdfW = 210; // mm (A4 width)
-        const pdfH = Math.ceil((canvas.height / canvas.width) * pdfW);
-
-        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfW, pdfH] });
-        pdf.addImage(
-            canvas.toDataURL('image/jpeg', 0.93), 'JPEG',
-            0, 0, pdfW, pdfH
-        );
-
-        const filename = `${r.title || 'דוח'}.pdf`;
-        if (returnBlob) return pdf.output('blob');
-        pdf.save(filename);
-        toast('PDF הורד ✓', 'success');
-        return null;
-    } catch (err) {
-        console.error('[PDF]', err);
-        toast('שגיאה ביצירת PDF', 'error');
-        return null;
-    } finally {
-        overlay?.classList.add('hidden');
-    }
-}
-
-/** Convert a remote URL to a data: URL for canvas embedding.
- *  Uses the Firebase Storage SDK (auth-aware, CORS-immune) for Storage URLs;
- *  falls back to fetch for anything else. */
-async function _fetchDataUrl(url) {
-    return fetchStorageDataUrl(url);
-}
-
-/** Scan backward from (startY + pageH) for the nearest near-white pixel row
- *  so page breaks land in whitespace rather than through content.
- *  Hard limit: 150 px — prevents freezing when no pure-white rows exist
- *  (e.g. reports with continuous grey/blue backgrounds). Falls back to
- *  exact A4 boundary rather than spinning indefinitely. */
-function _bestPageCut(canvas, startY, pageH) {
-    const SCAN_LIMIT = 150;           // absolute max rows to check (never > 150)
-    const THRESHOLD  = 248;           // "near-white": catches #f9fafb (249,250,251) etc.
-    const limit = Math.min(SCAN_LIMIT, Math.floor(pageH * 0.08));
-    try {
-        const ctx = canvas.getContext('2d');
-        for (let dy = 0; dy < limit; dy++) {
-            const scanY = startY + pageH - dy;
-            if (scanY < 0 || scanY >= canvas.height) break;   // stay in bounds
-            const data = ctx.getImageData(0, scanY, canvas.width, 1).data;
-            let white = true;
-            for (let i = 0; i < data.length; i += 4) {
-                if (data[i] < THRESHOLD || data[i + 1] < THRESHOLD || data[i + 2] < THRESHOLD) {
-                    white = false;
-                    break;
-                }
-            }
-            if (white) return pageH - dy;
-        }
-    } catch {
-        // Canvas tainted or getImageData unavailable — fall through to hard cut
-    }
-    return pageH;   // hard fallback: exact A4 mathematical boundary
-}
-
-/** Build a self-contained A4 HTML string that html2canvas will render.
- *  All text is dir=rtl; Heebo font; no external stylesheet dependencies. */
-function _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
-    const tasks     = r.tasks || [];
-    const realTasks = tasks.filter(t => t.type !== 'section');
-    const nPerf  = realTasks.filter(t => t.status === 'performed').length;
-    const nNot   = realTasks.filter(t => t.status === 'not_performed').length;
-    const nPend  = realTasks.filter(t => t.status === 'pending').length;
-    const docNum = r.number ? esc(r.number) : ('#' + r.id.slice(-8).toUpperCase());
-
-    const STATUS_MAP = {
-        performed:     { label: 'תקין',     bg: '#dcfce7', fg: '#166534' },
-        not_performed: { label: 'לא תקין',  bg: '#fee2e2', fg: '#991b1b' },
-        pending:       { label: 'ממתין',     bg: '#f1f5f9', fg: '#64748b' },
-    };
-
-    let rowN = 0;
-    const taskRows = tasks.map(t => {
-        if (t.type === 'section') {
-            const secText = esc(t.title || t.label || '');
-            return `<tr><td colspan="4" style="
-                padding:22px 14px 9px;
-                background:#e8edf5;
-                border-top:2px solid #c5d0e0;
-                border-bottom:1px solid #c5d0e0;
-                border-right:5px solid #f59e0b;
-                border-left:none;
-                font-weight:800;
-                font-size:13px;
-                color:#1a2640;
-                letter-spacing:0.3px;
-            ">${secText}</td></tr>`;
-        }
-        rowN++;
-        const s      = STATUS_MAP[t.status] || STATUS_MAP.pending;
-        const rowBg  = rowN % 2 === 0 ? '#f9fafb' : '#ffffff';
-        return `<tr style="background:${rowBg};">
-          <td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;
-            font-size:11px;color:#94a3b8;white-space:nowrap;">${rowN}</td>
-          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;">
-            ${esc(t.description || '')}</td>
-          <td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;">
-            <span style="background:${s.bg};color:${s.fg};padding:2px 9px;
-              border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap;">
-              ${s.label}</span></td>
-          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:11px;
-            color:#475569;">${esc(t.comments || '')}</td>
-        </tr>`;
-    }).join('');
-
-    const metaItems = [
-        ['לקוח',        r.customer],
-        ['אתר',         r.site],
-        ['טכנאי',       r.tech?.name],
-        ['תאריך ביקור', fmtDate(r.visitDate)],
-        ['שעת התחלה',   r.startTime],
-        ['שעת סיום',    r.endTime],
-        ['שעות עבודה',  r.totalHours],
-    ].filter(([, v]) => v);
-
-    const imagesHtml = imgSrcs.filter(Boolean).length ? `
-      <div style="margin-top:28px;">
-        <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;
-          text-transform:uppercase;border-bottom:2px solid #1a2640;
-          padding-bottom:5px;margin-bottom:12px;">תמונות</div>
-        <div style="display:flex;flex-wrap:wrap;gap:12px;">
-          ${imgSrcs.filter(Boolean).map(src =>
-            `<img src="${src}" style="width:calc(50% - 6px);aspect-ratio:4/3;object-fit:cover;
-              border-radius:6px;border:1px solid #e2e8f0;display:block;">`
-          ).join('')}
-        </div>
-      </div>` : '';
-
-    const sigBox = (sig, label, name, date) => `
-      <div style="flex:1;text-align:center;">
-        <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:8px;">${label}</div>
-        <div style="height:72px;border:1px solid #cbd5e1;border-radius:6px;
-          display:flex;align-items:center;justify-content:center;background:#f8fafc;">
-          ${sig ? `<img src="${sig}" style="max-height:62px;max-width:180px;object-fit:contain;">` : ''}
-        </div>
-        <div style="margin-top:6px;font-size:12px;font-weight:600;color:#1a2640;">${esc(name || '')}</div>
-        ${date ? `<div style="font-size:10px;color:#94a3b8;">${date}</div>` : ''}
-      </div>`;
-
-    return `
-    <div style="width:794px;direction:rtl;font-family:Heebo,Arial,sans-serif;
-      color:#1a1a2e;background:#fff;box-sizing:border-box;">
-
-      <!-- HEADER -->
-      <div style="background:#ffffff;color:#1a2640;padding:22px 36px;
-        display:flex;justify-content:space-between;align-items:center;
-        border-bottom:2px solid #e2e8f0;">
-        <div>
-          ${logoDataUrl
-            ? `<div style="margin-bottom:4px;">
-                 <img src="${logoDataUrl}" style="height:42px;object-fit:contain;display:block;filter:none;">
-               </div>`
-            : `<div style="font-size:26px;font-weight:800;letter-spacing:-.5px;color:#1a2640;">Oficiency</div>`
-          }
-          <div style="font-size:10px;color:#64748b;margin-top:2px;font-weight:500;">מערכת דוחות שירות</div>
-        </div>
-        <div style="text-align:left;">
-          <div style="font-size:9px;color:#64748b;font-weight:600;margin-bottom:2px;">מספר דוח</div>
-          <div style="font-size:16px;font-weight:700;color:#1a2640;">${docNum}</div>
-        </div>
-      </div>
-
-      <!-- META STRIP -->
-      <div style="background:#eef2f9;padding:10px 36px;display:flex;gap:28px;
-        flex-direction:row-reverse;justify-content:flex-end;
-        border-bottom:1px solid #d1dae8;flex-wrap:wrap;">
-        ${metaItems.map(([k, v]) => `
-          <div>
-            <div style="font-size:9px;color:#64748b;font-weight:600;">${k}</div>
-            <div style="font-size:12px;font-weight:700;color:#1a2640;">${esc(v)}</div>
-          </div>`).join('')}
-      </div>
-
-      <!-- STATUS BADGES -->
-      <div style="background:#f8fafc;padding:7px 36px;display:flex;gap:10px;
-        flex-direction:row-reverse;justify-content:flex-end;
-        border-bottom:1px solid #e2e8f0;flex-wrap:wrap;">
-        <span style="background:#dcfce7;color:#166534;padding:3px 11px;
-          border-radius:99px;font-size:10px;font-weight:700;">✓ תקין: ${nPerf}</span>
-        <span style="background:#fee2e2;color:#991b1b;padding:3px 11px;
-          border-radius:99px;font-size:10px;font-weight:700;">✗ לא תקין: ${nNot}</span>
-        <span style="background:#f1f5f9;color:#475569;padding:3px 11px;
-          border-radius:99px;font-size:10px;font-weight:700;">⏳ ממתין: ${nPend}</span>
-        <span style="background:#e0e7ff;color:#3730a3;padding:3px 11px;
-          border-radius:99px;font-size:10px;font-weight:700;">סה״כ: ${realTasks.length}</span>
-      </div>
-
-      <!-- MAIN CONTENT -->
-      <div style="padding:24px 36px;">
-
-        <div style="font-size:17px;font-weight:800;color:#1a2640;margin-bottom:16px;
-          padding-bottom:10px;border-bottom:2px solid #1a2640;">
-          ${esc(r.title || '')}
-        </div>
-
-        ${r.permComments ? `
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;
-          padding:10px 14px;margin-bottom:16px;">
-          <div style="font-size:10px;font-weight:700;color:#92400e;margin-bottom:3px;">
-            הערות כלליות</div>
-          <div style="font-size:11px;color:#78350f;">
-            ${esc(r.permComments).replace(/\n/g, '<br>')}</div>
-        </div>` : ''}
-
-        ${tasks.length ? `
-        <div style="margin-bottom:20px;">
-          <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;
-            text-transform:uppercase;border-bottom:2px solid #1a2640;
-            padding-bottom:5px;margin-bottom:8px;">משימות</div>
-          <table style="width:100%;border-collapse:collapse;">
-            <thead>
-              <tr style="background:#1a2640;color:#fff;">
-                <th style="border:1px solid #334155;padding:8px;text-align:center;
-                  width:32px;font-size:10px;">#</th>
-                <th style="border:1px solid #334155;padding:8px 10px;text-align:right;
-                  font-size:10px;">תיאור</th>
-                <th style="border:1px solid #334155;padding:8px;text-align:center;
-                  width:80px;font-size:10px;">סטטוס</th>
-                <th style="border:1px solid #334155;padding:8px 10px;text-align:right;
-                  width:175px;font-size:10px;">הערות</th>
-              </tr>
-            </thead>
-            <tbody>${taskRows}</tbody>
-          </table>
-        </div>` : ''}
-
-        ${r.finalComments ? `
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;
-          padding:10px 14px;margin-bottom:16px;">
-          <div style="font-size:10px;font-weight:700;color:#334155;margin-bottom:4px;">
-            הערות סיום</div>
-          <div style="font-size:11px;">
-            ${esc(r.finalComments).replace(/\n/g, '<br>')}</div>
-        </div>` : ''}
-
-        ${imagesHtml}
-
-        <!-- SIGNATURES -->
-        <div style="display:flex;gap:20px;margin-top:28px;padding-top:20px;
-          border-top:2px solid #e2e8f0;">
-          ${sigBox(sigTech, 'חתימת טכנאי',  r.tech?.name,  fmtDate(r.tech?.compDate))}
-          ${sigBox(sigCust, 'חתימת לקוח',   r.customer,    '')}
-        </div>
-
-      </div>
-
-      <!-- FOOTER -->
-      <div style="background:#f1f5f9;border-top:1px solid #e2e8f0;padding:8px 36px;
-        display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;">
-        <span>Oficiency © ${new Date().getFullYear()}</span>
-        <span>הופק: ${new Date().toLocaleDateString('he-IL')}</span>
-      </div>
-
-    </div>`;
-}
-
-/* ================================================================
    ASSET MOVE / COPY
 ================================================================ */
 export function showAssetMoveModal(type, id, action) {
     const names = Object.keys(S.folders);
     if (!names.length) { toast('אין תיקיות. צור תיקייה קודם.', 'error'); return; }
-
     _pendingAssetAction = { type, id, action };
-
     const titleEl = document.getElementById('assetMoveTitle');
     if (titleEl) titleEl.textContent = action === 'move' ? '📁 העבר לתיקייה' : '📁 העתק לתיקייה';
-
     let currentFolder = null;
     if (type === 'report') {
-        for (const fn in S.folders) {
-            if ((S.folders[fn] || []).includes(id)) { currentFolder = fn; break; }
-        }
+        for (const fn in S.folders) { if ((S.folders[fn] || []).includes(id)) { currentFolder = fn; break; } }
     } else if (type === 'template') {
         currentFolder = S.templates[id]?.folder || null;
     }
-
     const list = document.getElementById('assetMoveList');
     if (list) {
-        list.innerHTML = names.map(name => `
-            <div class="folder-opt ${name === currentFolder ? 'selected' : ''}"
-                 onclick="executeAssetAction('${esc(name)}')">
-                ${esc(name)}
-            </div>`).join('');
+        list.innerHTML = names.map(name =>
+            `<div class="folder-opt ${name === currentFolder ? 'selected' : ''}" onclick="executeAssetAction('${esc(name)}')">${esc(name)}</div>`
+        ).join('');
     }
     showModal('assetMoveModal');
 }
@@ -1287,24 +1067,20 @@ export function executeAssetAction(toFolder) {
 
 function _moveAsset(type, id, toFolder) {
     if (type === 'report') {
-        for (const fn in S.folders) {
-            S.folders[fn] = S.folders[fn].filter(x => x !== id);
-        }
+        for (const fn in S.folders) S.folders[fn] = S.folders[fn].filter(x => x !== id);
         if (!S.folders[toFolder]) S.folders[toFolder] = [];
         S.folders[toFolder].push(id);
         if (S.reports[id]) S.reports[id].folder = toFolder;
         persist();
         renderSidebar();
-        if (S.currentFolder) showFolderContent(S.currentFolder);
-        else showDashboard();
+        if (S.currentFolder) showFolderContent(S.currentFolder); else showDashboard();
         toast(`הדוח הועבר לתיקייה "${toFolder}"`, 'success');
     } else if (type === 'template') {
         if (!S.templates[id]) return;
         S.templates[id].folder = toFolder;
         persist();
         renderSidebar();
-        if (S.currentFolder) showFolderContent(S.currentFolder);
-        else showDashboard();
+        if (S.currentFolder) showFolderContent(S.currentFolder); else showDashboard();
         toast(`התבנית הועברה לתיקייה "${toFolder}"`, 'success');
     }
 }
@@ -1321,8 +1097,7 @@ async function _copyAsset(type, id, toFolder) {
         S.folders[toFolder].push(newId);
         persist();
         renderSidebar();
-        if (S.currentFolder) showFolderContent(S.currentFolder);
-        else showDashboard();
+        if (S.currentFolder) showFolderContent(S.currentFolder); else showDashboard();
         toast(`הדוח הועתק לתיקייה "${toFolder}"`, 'success');
         try {
             const saved = await apiSaveReport(S.reports[newId]);
@@ -1338,14 +1113,13 @@ async function _copyAsset(type, id, toFolder) {
         S.templates[newId] = { ...orig, id: newId, folder: toFolder, createdAt: now, updatedAt: now };
         persist();
         renderSidebar();
-        if (S.currentFolder) showFolderContent(S.currentFolder);
-        else showDashboard();
+        if (S.currentFolder) showFolderContent(S.currentFolder); else showDashboard();
         toast(`התבנית הועתקה לתיקייה "${toFolder}"`, 'success');
     }
 }
 
 /* ================================================================
-   IMPORT AS TEMPLATE (from folder templates tab)
+   IMPORT AS TEMPLATE
 ================================================================ */
 export function importAsTemplate(folderName) {
     const input = document.createElement('input');
@@ -1353,7 +1127,6 @@ export function importAsTemplate(folderName) {
     input.accept = '.xlsx,.xls,.docx,.doc';
     input.style.display = 'none';
     document.body.appendChild(input);
-
     input.onchange = (e) => {
         try { document.body.removeChild(input); } catch {}
         const file = e.target.files[0];
@@ -1362,13 +1135,9 @@ export function importAsTemplate(folderName) {
         const ext  = file.name.split('.').pop().toLowerCase();
         const name = file.name.replace(/\.[^.]+$/, '');
         if (['xlsx', 'xls'].includes(ext)) {
-            const fr = new FileReader();
-            fr.onload = ev => importExcel(ev.target.result, name);
-            fr.readAsArrayBuffer(file);
+            const fr = new FileReader(); fr.onload = ev => importExcel(ev.target.result, name); fr.readAsArrayBuffer(file);
         } else if (['docx', 'doc'].includes(ext)) {
-            const fr = new FileReader();
-            fr.onload = ev => importWord(ev.target.result, name);
-            fr.readAsArrayBuffer(file);
+            const fr = new FileReader(); fr.onload = ev => importWord(ev.target.result, name); fr.readAsArrayBuffer(file);
         } else {
             _importDefaultAs = 'report';
             toast('סוג קובץ לא נתמך', 'error');
@@ -1395,14 +1164,12 @@ export async function shareTo(platform) {
     const perf    = tasks.filter(t => t.status === 'performed').length;
     const notPerf = tasks.filter(t => t.status === 'not_performed').length;
 
-    const subject = encodeURIComponent(`דוח שירות – ${r.title || ''}${r.customer ? ' – ' + r.customer : ''}`);
+    const subject   = encodeURIComponent(`דוח שירות – ${r.title || ''}${r.customer ? ' – ' + r.customer : ''}`);
     const bodyLines = [
-        'שלום,',
-        'מצורף דוח שירות:',
-        '',
+        'שלום,', 'מצורף דוח שירות:', '',
         `שם הדוח: ${r.title || ''}`,
-        r.customer  ? `לקוח: ${r.customer}`           : '',
-        r.site      ? `אתר: ${r.site}`                : '',
+        r.customer  ? `לקוח: ${r.customer}`            : '',
+        r.site      ? `אתר: ${r.site}`                 : '',
         r.visitDate ? `תאריך: ${fmtDate(r.visitDate)}` : '',
         '',
         `סיכום משימות: ${perf} בוצעו, ${notPerf} לא בוצעו, סה"כ ${tasks.length}`,
