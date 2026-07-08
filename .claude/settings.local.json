@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l c:/TechnicianReports/frontend/Js/*.js)",
+      "Bash(python -c \"import ast, sys:*)",
+      "Bash(firebase deploy *)",
+      "Bash(gcloud version *)",
+      "Bash(gsutil version *)",
+      "Bash(npx playwright *)",
+      "Bash(npx firebase *)",
+      "Bash(Start-Sleep -Seconds 4)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Sagas\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--TechnicianReports\\\\2d7dc1f4-5999-4c67-bb05-feae4808b35e\\\\tasks\\\\bor0vx03q.output\")",
+      "Bash(node *)",
+      "Bash(Get-ChildItem -Recurse C:\\\\TechnicianReports\\\\frontend -Include \"*.png\",\"*.svg\",\"*.jpg\",\"*.jpeg\",\"*.webp\",\"*.ico\")",
+      "Bash(Select-Object FullName, Length)"
+    ]
+  }
+}

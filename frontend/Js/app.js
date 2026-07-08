@@ -4,8 +4,8 @@ import {
     showModal, hideModal, toast,
     setStatus, removeTask, openLightbox, closeLightbox,
     removeImage, openAppendixFile,
-    addTask, addSectionTitle,
-    addTplTask, addTplSection, renumberTplTasks,
+    addTask, addRangeTask, addSectionTitle,
+    addTplTask, addTplSection, addTplRangeTask, renumberTplTasks,
     handleImages, handleTplAppendixFile,
     clearSignature, clearCustomerSignature, toggleMobileSidebar, closeMobileSidebar,
     toggleFolder, updateToolbar, showDashboard, showFolderContent, switchFolderTab,
@@ -16,7 +16,9 @@ import {
 } from './ui.js';
 import {
     preloadLogo,
-    showNewReportModal, selectNewReportTpl, confirmNewReport,
+    showNewReportModal,
+    nrSelectType, nrGoStep1, nrGoStep2, nrGoStep3, nrSelectFolder, nrSelectTpl, nrConfirm,
+    saveDraft, clearDraft,
     openReport, saveReport, clearReport, deleteReportPrompt, confirmDelete, deleteReportById,
     showTemplateEditor, saveTplEditor, deleteTemplatePrompt,
     createReportFromTemplate, showSaveAsTemplate, confirmSaveAsTemplate,
@@ -51,10 +53,19 @@ window.deleteReportPrompt     = deleteReportPrompt;
 window.confirmDelete          = confirmDelete;
 window.deleteReportById       = deleteReportById;
 
-// New report modal
+// Auto-save draft
+window.saveDraft              = saveDraft;
+window.clearDraft             = clearDraft;
+
+// New report modal / wizard
 window.showNewReportModal     = showNewReportModal;
-window.selectNewReportTpl     = selectNewReportTpl;
-window.confirmNewReport       = confirmNewReport;
+window.nrSelectType           = nrSelectType;
+window.nrGoStep1              = nrGoStep1;
+window.nrGoStep2              = nrGoStep2;
+window.nrGoStep3              = nrGoStep3;
+window.nrSelectFolder         = nrSelectFolder;
+window.nrSelectTpl            = nrSelectTpl;
+window.nrConfirm              = nrConfirm;
 
 // Template actions
 window.showTemplateEditor     = showTemplateEditor;
@@ -65,6 +76,7 @@ window.showSaveAsTemplate     = showSaveAsTemplate;
 window.confirmSaveAsTemplate  = confirmSaveAsTemplate;
 window.addTplTask             = addTplTask;
 window.addTplSection          = addTplSection;
+window.addTplRangeTask        = addTplRangeTask;
 window.renumberTplTasks       = renumberTplTasks;
 window.handleTplAppendixFile  = handleTplAppendixFile;
 
@@ -90,8 +102,24 @@ window.shareTo                = shareTo;
 
 // Task UI
 window.addTask                = addTask;
+window.addRangeTask           = addRangeTask;
 window.addSectionTitle        = addSectionTitle;
-window.setStatus              = setStatus;
+window.handleAddTaskType = function(sel) {
+    const type = sel.value;
+    sel.selectedIndex = 0;
+    if (type === 'task')  addTask();
+    if (type === 'range') addRangeTask();
+};
+window.handleAddTplTaskType = function(sel) {
+    const type = sel.value;
+    sel.selectedIndex = 0;
+    if (type === 'task')  addTplTask();
+    if (type === 'range') addTplRangeTask();
+};
+window.setStatus = function(btn, status) {
+    setStatus(btn, status);
+    if (S.currentId) saveDraft();
+};
 window.removeTask             = removeTask;
 
 // Image / Appendix UI
@@ -199,6 +227,29 @@ window.handleToolbarSelect = function(sel) {
     if (action === 'delete')   deleteReportPrompt();
 };
 
+window.setRangeReading = function(input) {
+    const item   = input.closest('.task-item');
+    if (!item) return;
+    const val    = parseFloat(input.value);
+    const minInp = item.querySelector('.task-range-min');
+    const maxInp = item.querySelector('.task-range-max');
+    const minV   = minInp?.value !== '' ? parseFloat(minInp.value) : null;
+    const maxV   = maxInp?.value !== '' ? parseFloat(maxInp.value) : null;
+
+    input.classList.remove('in-range', 'out-of-range');
+
+    if (input.value === '' || isNaN(val)) {
+        item.dataset.status = 'pending';
+    } else if ((minV === null || val >= minV) && (maxV === null || val <= maxV)) {
+        input.classList.add('in-range');
+        item.dataset.status = 'in_range';
+    } else {
+        input.classList.add('out-of-range');
+        item.dataset.status = 'out_of_range';
+    }
+    markUnsaved();
+};
+
 window.calcTotalHours = function() {
     const start   = document.getElementById('fStartTime')?.value;
     const end     = document.getElementById('fEndTime')?.value;
@@ -215,6 +266,7 @@ window.calcTotalHours = function() {
         ? `${hours}:${String(mins).padStart(2, '0')} שעות`
         : `${hours} שעות`;
     markUnsaved();
+    if (S.currentId) saveDraft();
 };
 
 window.setServiceType = function(val) {
@@ -222,6 +274,8 @@ window.setServiceType = function(val) {
     document.querySelectorAll('#serviceTypePicker .seg-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.val === val);
     });
+    const row = document.getElementById('periodicIntervalRow');
+    if (row) row.style.display = val === 'routine' ? '' : 'none';
     markUnsaved();
 };
 
@@ -252,7 +306,7 @@ function switchTab(tab) {
 
         if (homePanel)  homePanel.classList.toggle('hidden', tab !== 'home');
         if (equipPanel) equipPanel.classList.toggle('hidden', tab !== 'equipment');
-        if (fab) fab.classList.toggle('fab-visible', tab === 'reports');
+        if (fab) fab.classList.toggle('fab-visible', tab === 'reports' || tab === 'home');
 
         if (tab === 'home')      renderHomeDashboard();
         if (tab === 'equipment') renderEquipmentTab();
@@ -293,7 +347,6 @@ document.querySelectorAll('.overlay').forEach(o => {
 });
 
 document.getElementById('newFolderName').addEventListener('keydown', e => { if (e.key==='Enter') createFolder(); });
-document.getElementById('newReportName').addEventListener('keydown', e => { if (e.key==='Enter') confirmNewReport(); });
 
 document.addEventListener('keydown', e => {
     if ((e.ctrlKey||e.metaKey) && e.key==='s') { e.preventDefault(); saveReport(); }
@@ -457,8 +510,11 @@ async function init() {
     setTodayDates();
     initSortable();
     showDashboard();
-    document.querySelectorAll('#reportEditor input, #reportEditor textarea').forEach(el => {
-        el.addEventListener('input', () => markUnsaved());
+    // Single delegated listener covers all inputs including dynamically-added task fields.
+    // Both markUnsaved() and saveDraft() fire on every keystroke/change inside the editor.
+    document.getElementById('reportEditor').addEventListener('input', () => {
+        markUnsaved();
+        if (S.currentId) saveDraft();
     });
     const _permTA = document.getElementById('fPermComments');
     if (_permTA) _permTA.addEventListener('input', () => window.autoExpand(_permTA));

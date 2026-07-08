@@ -308,13 +308,18 @@ export async function hydrate() {
     _unsubscribers.push(onSnapshot(
         collection(db, "reports"),
         (snap) => {
-            const deleted = new Set(JSON.parse(localStorage.getItem('trs_deleted') || '[]'));
+            const localDeleted  = new Set(JSON.parse(localStorage.getItem('trs_deleted') || '[]'));
+            const remoteDeleted = new Set(); // IDs explicitly marked isDeleted:true in Firestore
             const latest = {};
             snap.forEach(docSnap => {
                 const row = docSnap.data();
+                // Hard-exclude any document the server has flagged as deleted.
+                // This propagates to ALL connected clients the moment the admin
+                // writes isDeleted:true — before the actual deleteDoc completes.
+                if (row.isDeleted) { remoteDeleted.add(docSnap.id); return; }
                 const r   = row.report_data;
                 if (!r || !r.id) return;
-                if (deleted.has(r.id)) return;
+                if (localDeleted.has(r.id)) return;
                 // Don't overwrite the report the user is currently editing
                 // with unsaved changes — but once saved, let Firestore win.
                 if (r.id === S.currentId && S.unsaved && S.reports[r.id]) {
@@ -324,9 +329,10 @@ export async function hydrate() {
                 }
             });
             // If the currently-open report is missing from this snapshot
-            // (e.g. transient gap between local write and server confirm),
-            // keep the in-memory copy so the editor never loses its subject.
-            if (S.currentId && !latest[S.currentId] && S.reports[S.currentId]) {
+            // (transient gap between local write and server confirmation),
+            // keep the in-memory copy — but NOT if Firestore flagged it deleted.
+            if (S.currentId && !latest[S.currentId] && S.reports[S.currentId]
+                    && !remoteDeleted.has(S.currentId)) {
                 latest[S.currentId] = S.reports[S.currentId];
             }
             S.reports = latest;
@@ -489,9 +495,14 @@ export async function apiGetReportById(backendId) {
     return { id: docSnap.id, ...docSnap.data() };
 }
 
-/** מחיקת דוח מ-Firestore לפי ה-ID */
+/** מחיקת דוח מ-Firestore לפי ה-ID.
+ *  Writes isDeleted:true first so every connected client's onSnapshot fires
+ *  and immediately removes the report from their S.reports — before the
+ *  hard deleteDoc completes or in case it is temporarily delayed. */
 export async function apiDeleteReport(frontendUid) {
-    await deleteDoc(doc(db, "reports", frontendUid));
+    const docRef = doc(db, "reports", frontendUid);
+    try { await updateDoc(docRef, { isDeleted: true }); } catch {}
+    await deleteDoc(docRef);
 }
 
 /** שמירת בקשת הרשמה חדשה — ממתינה לאישור מנהל */
@@ -787,6 +798,23 @@ export function apiSubscribeUserStatus(email, cb) {
         },
         (err) => { console.warn('[AUTH-GUARD] status listener error:', err.message); }
     );
+}
+
+/* ================================================================
+   API – DRAFT AUTO-SAVE (text fields + task states, no images/sigs)
+================================================================ */
+export async function apiSaveDraftFields(reportId, snapshot) {
+    try {
+        await setDoc(doc(db, 'report_drafts', reportId), { ...snapshot, reportId });
+    } catch (e) {
+        console.warn('[DRAFT] Firestore backup failed:', e.message);
+    }
+}
+
+export async function apiClearDraftFields(reportId) {
+    try {
+        await deleteDoc(doc(db, 'report_drafts', reportId));
+    } catch {}
 }
 
 /* ================================================================

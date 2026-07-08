@@ -13,7 +13,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1.3.40">
+    <link rel="stylesheet" href="css/variables.css?v=1.5.8">
+    <link rel="stylesheet" href="css/global.css?v=1.5.8">
+    <link rel="stylesheet" href="css/auth.css?v=1.5.8">
+    <link rel="stylesheet" href="css/layout.css?v=1.5.8">
+    <link rel="stylesheet" href="css/components.css?v=1.5.8">
+    <link rel="stylesheet" href="css/reports.css?v=1.5.8">
+    <link rel="stylesheet" href="css/dashboard.css?v=1.5.8">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -27,7 +33,7 @@
 <!-- ══════════════════ SPLASH SCREEN ════════════════════════ -->
 <div id="splashScreen" aria-hidden="true">
     <div class="splash-logo">
-        <img src="assets/logo.png" alt="Oficiency Logo" class="company-logo">
+        <img src="assets/Oficiency%20white%20LOGO.png" alt="Oficiency Logo" class="company-logo">
     </div>
 </div>
 <script>
@@ -62,7 +68,7 @@ window._showLoginWhenSplashDone = false;
 
         <!-- Shared logo -->
         <div class="login-logo-wrap">
-            <img src="assets/logo.png" alt="Oficiency Logo" class="company-logo">
+            <img src="assets/Oficiency%20white%20LOGO.png" alt="Oficiency Logo" class="company-logo">
         </div>
 
         <!-- ── LOGIN VIEW ────────────────────────────────────── -->
@@ -111,7 +117,7 @@ window._showLoginWhenSplashDone = false;
 
 <!-- ══════════════════ MOBILE TOP BAR ════════════════════════ -->
 <header class="mobile-topbar" id="mobileTopbar">
-    <img src="assets/logo.png" alt="Oficiency" class="company-logo mobile-topbar-logo">
+    <img src="assets/Oficiency%20white%20LOGO.png" alt="Oficiency" class="company-logo mobile-topbar-logo">
     <div class="mobile-topbar-user">
         <button class="mobile-refresh-btn" onclick="this.classList.add('spinning');window.location.reload()" title="רענן">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -142,7 +148,7 @@ window._showLoginWhenSplashDone = false;
 <aside class="sidebar">
     <div class="sidebar-header">
         <div class="sidebar-logo" id="sidebarLogo" onclick="navToDashboard()">
-            <img src="assets/logo.png" alt="Oficiency Logo" class="company-logo">
+            <img src="assets/Oficiency%20white%20LOGO.png" alt="Oficiency Logo" class="company-logo">
         </div>
         <button class="btn-new-folder" onclick="showModal('createFolderModal')">+ תיקייה חדשה</button>
     </div>
@@ -159,7 +165,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.3.40</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.5.8</div>
     </div>
 </aside>
 
@@ -202,7 +208,7 @@ window._showLoginWhenSplashDone = false;
 
             <!-- Logo header -->
             <div class="report-logo-header">
-                <img src="assets/logo.png" alt="Oficiency" class="company-logo report-logo-img">
+                <img src="assets/Oficiency%20white%20LOGO.png" alt="Oficiency" class="company-logo report-logo-img">
             </div>
 
             <!-- Mobile back button -->
@@ -216,13 +222,20 @@ window._showLoginWhenSplashDone = false;
                 <div class="card-title">פרטי הדוח</div>
                 <div class="fg" style="margin-bottom:14px">
                     <label class="lbl">סוג הטיפול</label>
-                    <div class="seg-picker" id="serviceTypePicker">
-                        <button type="button" class="seg-btn" data-val="routine" onclick="setServiceType('routine')">ביקור תקופתי</button>
-                        <button type="button" class="seg-btn" data-val="fault"   onclick="setServiceType('fault')">תקלה</button>
-                        <button type="button" class="seg-btn" data-val="extra"   onclick="setServiceType('extra')">טיפול נוסף</button>
-                        <button type="button" class="seg-btn" data-val="other"   onclick="setServiceType('other')">אחר</button>
-                    </div>
+                    <div id="serviceTypeDisplay" class="report-service-badge"></div>
                     <input type="hidden" id="fServiceType" value="">
+                </div>
+                <div id="periodicIntervalRow" class="fg" style="display:none;margin-bottom:14px">
+                    <label class="lbl">תדירות ביקור תקופתי</label>
+                    <select id="fPeriodicInterval" oninput="markUnsaved()">
+                        <option value="">בחר תדירות...</option>
+                        <option value="weekly">שבועי</option>
+                        <option value="bimonthly">דו-שבועי</option>
+                        <option value="monthly">חודשי</option>
+                        <option value="quarterly">רבעוני</option>
+                        <option value="semiannual">חצי שנתי</option>
+                        <option value="annual">שנתי</option>
+                    </select>
                 </div>
                 <div class="form-row">
                     <div class="fg">
@@ -279,7 +292,14 @@ window._showLoginWhenSplashDone = false;
                 </div>
                 <div id="tasksList"></div>
                 <div class="task-add-row">
-                    <button class="btn-add-task" style="flex:1" onclick="addTask()">+ הוסף משימה</button>
+                    <div class="add-task-split">
+                        <span class="add-task-btn-label">+ הוסף משימה ▾</span>
+                        <select class="add-task-type-select" onchange="handleAddTaskType(this)">
+                            <option value="">+ הוסף משימה</option>
+                            <option value="task">משימה רגילה (תקין / לא תקין)</option>
+                            <option value="range">משימת ערך (מדד מספרי)</option>
+                        </select>
+                    </div>
                     <button class="btn-add-section" onclick="addSectionTitle()">+ קטגוריה</button>
                 </div>
             </div>
@@ -380,7 +400,14 @@ window._showLoginWhenSplashDone = false;
                 <div class="card-title">רשימת משימות</div>
                 <div id="tplTaskList" style="margin-top:6px;"></div>
                 <div class="task-add-row" style="margin-top:8px;">
-                    <button class="btn-add-task" style="flex:1" onclick="addTplTask()">+ הוסף משימה</button>
+                    <div class="add-task-split">
+                        <span class="add-task-btn-label">+ הוסף משימה ▾</span>
+                        <select class="add-task-type-select" onchange="handleAddTplTaskType(this)">
+                            <option value="">+ הוסף משימה</option>
+                            <option value="task">משימה רגילה (תקין / לא תקין)</option>
+                            <option value="range">משימת ערך (מדד מספרי)</option>
+                        </select>
+                    </div>
                     <button class="btn-add-section" onclick="addTplSection()">+ קטגוריה</button>
                 </div>
             </div>
@@ -409,21 +436,55 @@ window._showLoginWhenSplashDone = false;
 
 <!-- ══════════════════ MODALS ═════════════════════════════ -->
 
-<!-- New Report -->
+<!-- New Report Wizard -->
 <div class="overlay hidden" id="newReportModal">
     <div class="modal">
-        <h3>📄 דוח חדש</h3>
-        <div class="fg" style="margin-bottom:12px">
-            <label class="lbl">שם הדוח</label>
-            <input type="text" id="newReportName" placeholder='למשל:  תחזוקה חודשית – ינואר 2026' />
+        <!-- Step 1: Service Type -->
+        <div id="nrStep1">
+            <h3>📋 דוח חדש</h3>
+            <p class="modal-sub">מה סוג הטיפול?</p>
+            <div class="nr-type-grid">
+                <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'routine')">
+                    <span class="nr-type-icon">🔄</span>
+                    <span class="nr-type-label">ביקור תקופתי</span>
+                </button>
+                <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'fault')">
+                    <span class="nr-type-icon">⚠️</span>
+                    <span class="nr-type-label">תקלה</span>
+                </button>
+                <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'extra')">
+                    <span class="nr-type-icon">🔧</span>
+                    <span class="nr-type-label">טיפול נוסף</span>
+                </button>
+                <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'other')">
+                    <span class="nr-type-icon">📄</span>
+                    <span class="nr-type-label">אחר</span>
+                </button>
+            </div>
+            <div class="modal-actions">
+                <button class="mbtn mbtn-confirm" id="nrStep1Next" onclick="nrGoStep2()" disabled>המשך ←</button>
+                <button class="mbtn mbtn-cancel" onclick="hideModal('newReportModal')">ביטול</button>
+            </div>
         </div>
-        <div class="fg">
-            <label class="lbl">התחל מתבנית (אופציונלי)</label>
-            <div id="newReportTplList" style="max-height:180px;overflow-y:auto;margin-top:5px;"></div>
+        <!-- Step 2: Location / Folder -->
+        <div id="nrStep2" style="display:none">
+            <h3>📁 בחר אתר / מיקום</h3>
+            <p class="modal-sub">באיזה אתר מתבצע הטיפול?</p>
+            <div id="nrFolderList" style="max-height:260px;overflow-y:auto;margin-top:4px;"></div>
+            <div class="modal-actions">
+                <button class="mbtn mbtn-confirm" id="nrStep2NextBtn" onclick="nrGoStep3()">המשך ←</button>
+                <button class="mbtn mbtn-cancel" onclick="nrGoStep1()">→ חזור</button>
+            </div>
         </div>
-        <div class="modal-actions">
-            <button class="mbtn mbtn-confirm" onclick="confirmNewReport()">צור דוח</button>
-            <button class="mbtn mbtn-cancel" onclick="hideModal('newReportModal')">ביטול</button>
+        <!-- Step 3: Template (routine visits only) -->
+        <div id="nrStep3" style="display:none">
+            <h3>📋 בחר תבנית</h3>
+            <p class="modal-sub">בחר תבנית לביקור, או התחל דוח ריק</p>
+            <div id="nrTplList" style="max-height:220px;overflow-y:auto;margin-top:4px;"></div>
+            <div class="modal-actions">
+                <button class="mbtn mbtn-confirm" onclick="nrConfirm()">צור דוח ✓</button>
+                <button class="mbtn mbtn-cancel" onclick="nrGoStep2()">→ חזור</button>
+            </div>
         </div>
     </div>
 </div>
@@ -747,7 +808,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.3.40"></script>
-<script type="module" src="Js/app.js?v=1.3.40"></script>
+<script type="module" src="Js/api.js?v=1.5.8"></script>
+<script type="module" src="Js/app.js?v=1.5.8"></script>
 </body>
 </html>
