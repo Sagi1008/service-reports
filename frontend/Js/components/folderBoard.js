@@ -5,10 +5,11 @@ import { S, esc, fmtDate } from '../api.js';
    Renders the chronological 3-column service history table for a folder.
 ================================================================ */
 const ST_LABELS = {
-    routine: 'תקופתי',
-    fault:   'תקלה',
-    extra:   'טיפול נוסף',
-    other:   'אחר',
+    routine:   'תקופתי',
+    fault:     'תקלה',
+    extra:     'טיפול נוסף',
+    other:     'אחר',
+    daily_log: 'יומן עבודה',
 };
 
 const INTERVAL_LABELS = {

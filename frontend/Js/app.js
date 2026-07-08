@@ -28,6 +28,7 @@ import {
     importFile, confirmImport, onDocumentFilePicked, confirmDocumentUpload,
     exportJSON, downloadPDF, showShareModal, shareTo,
     showAssetMoveModal, executeAssetAction, importAsTemplate,
+    dlAddRow, dlDelRow,
 } from './reports.js';
 import { renderHomeDashboard } from './components/HomeTab.js';
 import { renderEquipmentTab } from './components/EquipmentTab.js';
@@ -121,6 +122,10 @@ window.setStatus = function(btn, status) {
     if (S.currentId) saveDraft();
 };
 window.removeTask             = removeTask;
+
+// Daily Work Log
+window.dlAddRow               = dlAddRow;
+window.dlDelRow               = dlDelRow;
 
 // Image / Appendix UI
 window.handleImages           = handleImages;

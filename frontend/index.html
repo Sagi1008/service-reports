@@ -276,7 +276,7 @@ window._showLoginWhenSplashDone = false;
             </div>
 
             <!-- Permanent comments -->
-            <div class="card">
+            <div class="card" id="cardPermComments">
                 <div class="card-title">
                     הערות קבועות
                     <span class="card-badge">מופיעות בכל פתיחה</span>
@@ -285,7 +285,7 @@ window._showLoginWhenSplashDone = false;
             </div>
 
             <!-- Tasks -->
-            <div class="card">
+            <div class="card" id="cardTasks">
                 <div class="card-title">
                     רשימת משימות
                     <span class="card-badge" id="taskCountBadge">0 משימות</span>
@@ -301,6 +301,103 @@ window._showLoginWhenSplashDone = false;
                         </select>
                     </div>
                     <button class="btn-add-section" onclick="addSectionTitle()">+ קטגוריה</button>
+                </div>
+            </div>
+
+            <!-- Daily Work Log Section (visible only for daily_log service type) -->
+            <div class="card" id="cardDailyLog" style="display:none;">
+                <div class="card-title">יומן עבודה יומי</div>
+                <div class="form-row" style="margin-bottom:14px;">
+                    <div class="fg">
+                        <label class="lbl">יום בשבוע</label>
+                        <select id="fDayOfWeek" oninput="markUnsaved()">
+                            <option value="">בחר יום...</option>
+                            <option value="ראשון">ראשון</option>
+                            <option value="שני">שני</option>
+                            <option value="שלישי">שלישי</option>
+                            <option value="רביעי">רביעי</option>
+                            <option value="חמישי">חמישי</option>
+                            <option value="שישי">שישי</option>
+                            <option value="שבת">שבת</option>
+                        </select>
+                    </div>
+                    <div class="fg">
+                        <label class="lbl">מזג אוויר</label>
+                        <input type="text" id="fWeather" placeholder="למשל: בהיר, גשום..." oninput="markUnsaved()" />
+                    </div>
+                </div>
+                <div class="fg" style="margin-bottom:20px;">
+                    <label class="lbl">תיאור הפעילות בפרויקט / מקטע / מגרש</label>
+                    <textarea id="fProjectDesc" rows="2" placeholder="תיאור כללי של הפעילות בפרויקט..." oninput="markUnsaved()"></textarea>
+                </div>
+                <!-- Activities -->
+                <div class="dl-section">
+                    <div class="dl-section-title">פעילות</div>
+                    <table class="dl-table">
+                        <thead><tr>
+                            <th style="width:30px;">#</th>
+                            <th>פעילות \ משימה (על פי חוזה)</th>
+                            <th>הערות</th>
+                            <th style="width:50px;text-align:center;">חתימה</th>
+                            <th style="width:36px;"></th>
+                        </tr></thead>
+                        <tbody id="dlActivitiesTbody"></tbody>
+                    </table>
+                    <button class="dl-add-btn" onclick="dlAddRow('activities')">+ הוסף שורה</button>
+                </div>
+                <!-- Daily workers -->
+                <div class="dl-section">
+                    <div class="dl-section-title">פועלים ב'יומית'</div>
+                    <table class="dl-table">
+                        <thead><tr>
+                            <th style="width:30px;">#</th>
+                            <th>שם + משפחה</th>
+                            <th>מקצוע</th>
+                            <th>הערות</th>
+                            <th style="width:36px;"></th>
+                        </tr></thead>
+                        <tbody id="dlDailyWorkersTbody"></tbody>
+                    </table>
+                    <button class="dl-add-btn" onclick="dlAddRow('dailyWorkers')">+ הוסף פועל</button>
+                </div>
+                <!-- Subcontractors -->
+                <div class="dl-section">
+                    <div class="dl-section-title">פועלים לקבלני משנה</div>
+                    <table class="dl-table">
+                        <thead><tr>
+                            <th style="width:30px;">#</th>
+                            <th>קבלן משנה</th>
+                            <th>מקצוע</th>
+                            <th>הערות</th>
+                            <th style="width:36px;"></th>
+                        </tr></thead>
+                        <tbody id="dlSubWorkersTbody"></tbody>
+                    </table>
+                    <button class="dl-add-btn" onclick="dlAddRow('subWorkers')">+ הוסף קבלן משנה</button>
+                </div>
+                <!-- Equipment -->
+                <div class="dl-section">
+                    <div class="dl-section-title">ציוד מכאני הנדסי</div>
+                    <table class="dl-table">
+                        <thead><tr>
+                            <th style="width:30px;">#</th>
+                            <th>שם / סוג ציוד</th>
+                            <th style="width:80px;">כמות</th>
+                            <th>הערות</th>
+                            <th style="width:36px;"></th>
+                        </tr></thead>
+                        <tbody id="dlEquipmentTbody"></tbody>
+                    </table>
+                    <button class="dl-add-btn" onclick="dlAddRow('equipment')">+ הוסף ציוד</button>
+                </div>
+                <!-- Notes -->
+                <div class="fg" style="margin-bottom:14px;">
+                    <label class="lbl">הערות כלליות</label>
+                    <textarea id="fGeneralNotes" rows="3" placeholder="הערות כלליות לגבי יום העבודה..." oninput="markUnsaved()"></textarea>
+                </div>
+                <div class="fg">
+                    <label class="lbl">הערות מפקח</label>
+                    <textarea id="fSupervisorNotes" rows="3" placeholder="הערות המפקח..." oninput="markUnsaved()"></textarea>
                 </div>
             </div>
 
@@ -329,7 +426,7 @@ window._showLoginWhenSplashDone = false;
 
             <!-- Technician (hidden in template mode) -->
             <div class="card" id="cardTech">
-                <div class="card-title">פרטי הטכנאי</div>
+                <div class="card-title" id="cardTechTitle">פרטי הטכנאי</div>
                 <div class="form-row">
                     <div class="fg">
                         <label class="lbl">שם הטכנאי</label>
@@ -341,7 +438,7 @@ window._showLoginWhenSplashDone = false;
                     </div>
                 </div>
                 <div class="fg" style="margin-top:11px">
-                    <label class="lbl">חתימת הטכנאי</label>
+                    <label class="lbl" id="lblTechSig">חתימת הטכנאי</label>
                     <div class="sig-wrap"><canvas id="signatureCanvas"></canvas></div>
                     <div class="sig-actions">
                         <button class="btn-sig-clear" onclick="clearSignature()">נקה חתימה</button>
@@ -351,7 +448,7 @@ window._showLoginWhenSplashDone = false;
 
             <!-- Customer Signature (hidden in template mode) -->
             <div class="card" id="cardCustomerSig">
-                <div class="card-title">חתימת לקוח</div>
+                <div class="card-title" id="cardCustomerSigTitle">חתימת לקוח</div>
                 <div class="fg">
                     <label class="lbl">חתום בתיבה למטה באמצעות האצבע או העכבר</label>
                     <div class="sig-wrap"><canvas id="customerSigCanvas"></canvas></div>
@@ -459,6 +556,10 @@ window._showLoginWhenSplashDone = false;
                 <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'other')">
                     <span class="nr-type-icon">📄</span>
                     <span class="nr-type-label">אחר</span>
+                </button>
+                <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'daily_log')">
+                    <span class="nr-type-icon">📅</span>
+                    <span class="nr-type-label">יומן עבודה יומי</span>
                 </button>
             </div>
             <div class="modal-actions">

@@ -125,7 +125,7 @@ function _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
         </tr>`;
     }).join('');
 
-    const PDF_ST_LABELS  = { routine: 'תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר' };
+    const PDF_ST_LABELS  = { routine: 'תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי' };
     const PDF_INT_LABELS = { weekly: 'שבועי', bimonthly: 'דו-שבועי', monthly: 'חודשי', quarterly: 'רבעוני', semiannual: 'חצי שנתי', annual: 'שנתי' };
     const stDisp  = PDF_ST_LABELS[r.serviceType] || '';
     const intDisp = (r.serviceType === 'routine' && r.periodicInterval)
@@ -275,6 +275,157 @@ function _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
 }
 
 /* ================================================================
+   DAILY LOG PDF LAYOUT
+================================================================ */
+function _buildDailyLogLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
+    const dl     = r.dailyLog || {};
+    const docNum = r.number ? esc(r.number) : ('#' + r.id.slice(-8).toUpperCase());
+
+    const logoHtml = logoDataUrl
+        ? '<img src="' + logoDataUrl + '" style="height:38px;max-height:38px;width:auto;max-width:150px;object-fit:contain;display:block;">'
+        : '<div style="font-size:22px;font-weight:800;color:#1a2640;">Oficiency</div>';
+
+    // Table builder
+    const tblSection = function(title) {
+        return '<div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid #1a2640;padding-bottom:4px;margin:18px 0 8px;">' + title + '</div>';
+    };
+    // Columns that should stay narrow and not wrap — auto-size to their content
+    const NO_WRAP_HDRS = new Set(['שם + משפחה', 'מקצוע', 'כמות', 'קבלן משנה', 'שם / סוג ציוד']);
+    const buildTbl = function(headers, rows) {
+        const ths = headers.map(function(h, i, arr) {
+            const isFirst = i === 0;
+            const isLast  = i === arr.length - 1 && h === 'חתימה';
+            let extra;
+            if (isFirst)           extra = 'width:30px;text-align:center;white-space:nowrap;';
+            else if (isLast)       extra = 'width:54px;text-align:center;white-space:nowrap;';
+            else if (NO_WRAP_HDRS.has(h)) extra = 'white-space:nowrap;';
+            else                   extra = 'min-width:160px;';
+            return '<th style="background:#1a2640;color:#fff;padding:6px 8px;border:1px solid #334155;font-size:10px;text-align:right;' + extra + '">' + h + '</th>';
+        }).join('');
+        const trs = rows.length ? rows.map(function(cells, ri) {
+            const bg = ri % 2 === 0 ? '#ffffff' : '#f9fafb';
+            const tds = cells.map(function(cell, ci, arr) {
+                const isNum      = ci === 0;
+                const h          = headers[ci];
+                const isLastCol  = ci === arr.length - 1;
+                const isMark     = isLastCol && h === 'חתימה';
+                const isNoWrap   = !isNum && !isMark && NO_WRAP_HDRS.has(h);
+                let extraStyle;
+                if (isNum)         extraStyle = 'text-align:center;font-weight:700;color:#94a3b8;width:30px;';
+                else if (isMark)   extraStyle = 'text-align:center;font-size:14px;color:#166534;font-weight:700;width:54px;';
+                else if (isNoWrap) extraStyle = 'white-space:nowrap;';
+                else               extraStyle = 'word-break:break-word;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;min-width:160px;';
+                return '<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11.5px;' + extraStyle + '"><bdi style="unicode-bidi:isolate;">' + esc(cell || '') + '</bdi></td>';
+            }).join('');
+            return '<tr style="background:' + bg + ';">' + tds + '</tr>';
+        }).join('') : '<tr><td colspan="' + headers.length + '" style="border:1px solid #e2e8f0;padding:10px 8px;text-align:center;color:#94a3b8;font-size:11px;">אין נתונים</td></tr>';
+        return '<table style="width:100%;border-collapse:collapse;table-layout:auto;"><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table>';
+    };
+
+    const actRows  = (dl.activities   || []).map(function(a, i) { return [String(i+1), a.contractTask, a.notes, a.signed ? '✓' : '']; });
+    const dwRows   = (dl.dailyWorkers  || []).map(function(w, i) { return [String(i+1), w.name, w.profession, w.notes]; });
+    const swRows   = (dl.subWorkers    || []).map(function(w, i) { return [String(i+1), w.contractor, w.profession, w.notes]; });
+    const eqRows   = (dl.equipment     || []).map(function(e, i) { return [String(i+1), e.name, e.quantity, e.notes]; });
+
+    const notesBox = function(text) {
+        return text ? '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;min-height:44px;font-size:11.5px;color:#1a2640;white-space:pre-wrap;">' + esc(text).replace(/\n/g, '<br>') + '</div>' : '';
+    };
+
+    const sigBox = function(sig, label, name) {
+        const img = sig ? '<img src="' + sig + '" style="max-height:58px;max-width:160px;object-fit:contain;">' : '<div style="height:48px;display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:10px;">אין חתימה</div>';
+        return '<div style="flex:1;min-width:0;text-align:center;padding:10px 18px;">'
+            + '<div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:6px;">' + label + '</div>'
+            + '<div style="height:66px;border:1px solid #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#f8fafc;margin-bottom:5px;">' + img + '</div>'
+            + '<div style="font-size:11.5px;font-weight:600;color:#1a2640;">' + esc(name || '') + '</div>'
+            + '</div>';
+    };
+
+    // Images — identical logic to _buildPrintLayout (proven working)
+    const validSrcs = imgSrcs.filter(Boolean);
+    const imgStyle  = 'width:calc(50% - 6px);max-width:calc(50% - 6px);height:auto;border-radius:6px;border:1px solid #e2e8f0;display:block;';
+    const imagesHtml = validSrcs.length
+        ? '<div style="margin-top:28px;">'
+            + '<div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid #1a2640;padding-bottom:5px;margin-bottom:12px;">תמונות</div>'
+            + '<div style="display:flex;flex-wrap:wrap;gap:12px;">'
+            + validSrcs.map(src => '<img src="' + src + '" style="' + imgStyle + '">').join('')
+            + '</div></div>'
+        : '';
+
+    return `
+    <div style="width:850px !important;min-width:850px !important;padding:0 !important;margin:0 !important;box-sizing:border-box !important;direction:rtl !important;font-family:Heebo,Arial,sans-serif;color:#1a1a2e;background:#fff;overflow:visible;">
+
+      <!-- HEADER -->
+      <div style="background:#fff;padding:18px 36px;display:flex;align-items:center;border-bottom:3px solid #1a2640;">
+        <div style="flex:1;">${logoHtml}<div style="font-size:9px;color:#64748b;margin-top:3px;font-weight:500;">מערכת דוחות שירות</div></div>
+        <div style="text-align:center;">
+          <div style="font-size:19px;font-weight:800;color:#1a2640;letter-spacing:0.4px;">יומן עבודה - יומי</div>
+          <div style="font-size:10px;color:#64748b;margin-top:2px;">${esc(r.customer||'')}${r.site ? ' | ' + esc(r.site) : ''}</div>
+        </div>
+        <div style="flex:1;text-align:left;">
+          <div style="font-size:9px;color:#64748b;font-weight:600;margin-bottom:2px;">מספר יומן</div>
+          <div style="font-size:14px;font-weight:700;color:#1a2640;">${docNum}</div>
+        </div>
+      </div>
+
+      <!-- META TABLE -->
+      <table style="width:100%;border-collapse:collapse;border-bottom:1px solid #e2e8f0;">
+        <tr>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:10px;font-weight:600;color:#64748b;background:#eef2f9;width:72px;">תאריך</td>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;font-weight:700;">${esc(r.visitDate||'')}</td>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:10px;font-weight:600;color:#64748b;background:#eef2f9;width:76px;">יום בשבוע</td>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;font-weight:700;">${esc(dl.dayOfWeek||'')}</td>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:10px;font-weight:600;color:#64748b;background:#eef2f9;width:68px;">מזג אוויר</td>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;font-weight:700;">${esc(dl.weather||'')}</td>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:10px;font-weight:600;color:#64748b;background:#eef2f9;width:88px;">מנהל עבודה</td>
+          <td style="border:1px solid #e2e8f0;padding:7px 10px;font-size:12px;font-weight:700;">${esc(r.tech?.name||'')}</td>
+        </tr>
+      </table>
+
+      <!-- CONTENT -->
+      <div style="padding:14px 36px 24px;">
+
+        ${dl.projectDesc ? tblSection('תיאור הפעילות בפרויקט / מקטע / מגרש') + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;font-size:11.5px;color:#1a2640;white-space:pre-wrap;margin-bottom:4px;">' + esc(dl.projectDesc) + '</div>' : ''}
+
+        ${tblSection('פעילות')}
+        ${buildTbl(['#', 'פעילות / משימה (על פי חוזה)', 'הערות', 'חתימה'], actRows)}
+
+        ${tblSection("פועלים ב'יומית'")}
+        ${buildTbl(['#', 'שם + משפחה', 'מקצוע', 'הערות'], dwRows)}
+
+        ${tblSection('פועלים לקבלני משנה')}
+        ${buildTbl(['#', 'קבלן משנה', 'מקצוע', 'הערות'], swRows)}
+
+        ${tblSection('ציוד מכאני הנדסי')}
+        ${buildTbl(['#', 'שם / סוג ציוד', 'כמות', 'הערות'], eqRows)}
+
+        ${dl.generalNotes ? tblSection('הערות כלליות') + notesBox(dl.generalNotes) : ''}
+
+        ${dl.supervisorNotes ? tblSection('הערות מפקח') + notesBox(dl.supervisorNotes) : ''}
+
+        ${imagesHtml}
+
+        <!-- SIGNATURES -->
+        <div style="margin-top:24px;padding-top:14px;border-top:2px solid #1a2640;">
+          <div style="font-size:11px;font-weight:800;color:#1a2640;margin-bottom:10px;letter-spacing:0.3px;">אישור ליומן עבודה יומי (חתימות)</div>
+          <div style="display:flex;gap:0;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
+            ${sigBox(sigTech, 'חתימת מנהל עבודה', r.tech?.name)}
+            <div style="width:1px;background:#e2e8f0;flex-shrink:0;"></div>
+            ${sigBox(sigCust, 'חתימת מפקח', '')}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- FOOTER -->
+      <div style="background:#f1f5f9;border-top:1px solid #e2e8f0;padding:8px 36px;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;">
+        <span>Oficiency \xA9 ${new Date().getFullYear()}</span>
+        <span>הופק: ${new Date().toLocaleDateString('he-IL')}</span>
+      </div>
+
+    </div>`;
+}
+
+/* ================================================================
    PDF DOWNLOAD
    Calls window.saveReport to avoid a circular import with reports.js.
    window.saveReport is registered by app.js before any user interaction.
@@ -308,7 +459,9 @@ export async function downloadPDF(returnBlob = false) {
 
         const wrap = document.createElement('div');
         wrap.style.cssText = 'position:absolute;top:0;left:0;width:850px;min-width:850px;box-sizing:border-box;overflow:visible;background:#fff;font-family:Heebo,Arial,sans-serif;';
-        wrap.innerHTML = _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs);
+        wrap.innerHTML = r.serviceType === 'daily_log'
+            ? _buildDailyLogLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs)
+            : _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs);
         document.body.appendChild(wrap);
 
         await Promise.all(

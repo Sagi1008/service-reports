@@ -74,7 +74,87 @@ function _applyReadOnlyMode(r) {
    NEW REPORT WIZARD (3-step: service type → location → template)
 ================================================================ */
 const _NR = { serviceType: '', folder: null, tplId: null };
-const _NR_LABELS = { routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר' };
+const _NR_LABELS = { routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי' };
+
+/* ================================================================
+   DAILY WORK LOG — helpers
+================================================================ */
+function _emptyDailyLog() {
+    return { dayOfWeek: '', weather: '', projectDesc: '', activities: [], dailyWorkers: [], subWorkers: [], equipment: [], generalNotes: '', supervisorNotes: '' };
+}
+
+function _dlRowHtml(type, data, num) {
+    const inp = (val, ph) => '<input type="text" class="dl-input" value="' + esc(val || '') + '" placeholder="' + ph + '" oninput="markUnsaved()">';
+    const numInp = (val, ph) => '<input type="number" class="dl-input" value="' + esc(String(val || '')) + '" placeholder="' + ph + '" oninput="markUnsaved()" style="max-width:80px">';
+    const del = '<button class="dl-del-btn" onclick="dlDelRow(this)">✕</button>';
+    const chk = function(checked) { return '<input type="checkbox" class="dl-chk"' + (checked ? ' checked' : '') + ' oninput="markUnsaved()" aria-label="חתימה">'; };
+    if (type === 'activities')   return '<tr><td class="dl-num">' + num + '</td><td>' + inp(data.contractTask, 'פעילות / משימה...') + '</td><td>' + inp(data.notes, 'הערות...') + '</td><td style="text-align:center;">' + chk(data.signed) + '</td><td>' + del + '</td></tr>';
+    if (type === 'dailyWorkers') return '<tr><td class="dl-num">' + num + '</td><td>' + inp(data.name, 'שם + משפחה...') + '</td><td>' + inp(data.profession, 'מקצוע...') + '</td><td>' + inp(data.notes, 'הערות...') + '</td><td>' + del + '</td></tr>';
+    if (type === 'subWorkers')   return '<tr><td class="dl-num">' + num + '</td><td>' + inp(data.contractor, 'קבלן משנה...') + '</td><td>' + inp(data.profession, 'מקצוע...') + '</td><td>' + inp(data.notes, 'הערות...') + '</td><td>' + del + '</td></tr>';
+    if (type === 'equipment')    return '<tr><td class="dl-num">' + num + '</td><td>' + inp(data.name, 'שם / סוג ציוד...') + '</td><td>' + numInp(data.quantity, 'כמות...') + '</td><td>' + inp(data.notes, 'הערות...') + '</td><td>' + del + '</td></tr>';
+    return '';
+}
+
+export function renderDailyLog(dl = {}) {
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    set('fDayOfWeek',      dl.dayOfWeek);
+    set('fWeather',        dl.weather);
+    set('fProjectDesc',    dl.projectDesc);
+    set('fGeneralNotes',   dl.generalNotes);
+    set('fSupervisorNotes',dl.supervisorNotes);
+    const tbMap = { activities: 'dlActivitiesTbody', dailyWorkers: 'dlDailyWorkersTbody', subWorkers: 'dlSubWorkersTbody', equipment: 'dlEquipmentTbody' };
+    for (const [key, tbId] of Object.entries(tbMap)) {
+        const tbody = document.getElementById(tbId);
+        if (tbody) tbody.innerHTML = (dl[key] || []).map((row, i) => _dlRowHtml(key, row, i + 1)).join('');
+    }
+}
+
+export function dlAddRow(type) {
+    const tbMap = { activities: 'dlActivitiesTbody', dailyWorkers: 'dlDailyWorkersTbody', subWorkers: 'dlSubWorkersTbody', equipment: 'dlEquipmentTbody' };
+    const tbody = document.getElementById(tbMap[type]);
+    if (!tbody) return;
+    tbody.insertAdjacentHTML('beforeend', _dlRowHtml(type, {}, tbody.rows.length + 1));
+    markUnsaved();
+}
+
+export function dlDelRow(btn) {
+    const tbody = btn.closest('tr').parentElement;
+    btn.closest('tr').remove();
+    Array.from(tbody.rows).forEach((row, i) => { const c = row.querySelector('.dl-num'); if (c) c.textContent = i + 1; });
+    markUnsaved();
+}
+
+export function collectDailyLog() {
+    const get = id => document.getElementById(id)?.value || '';
+    const collectTbl = (tbId, cols) => {
+        const tbody = document.getElementById(tbId);
+        if (!tbody) return [];
+        return Array.from(tbody.rows).map(row => {
+            const inputs = row.querySelectorAll('input');
+            const obj = {};
+            cols.forEach((col, i) => { obj[col] = inputs[i]?.value.trim() || ''; });
+            return obj;
+        });
+    };
+    return {
+        dayOfWeek:      get('fDayOfWeek'),
+        weather:        get('fWeather'),
+        projectDesc:    get('fProjectDesc'),
+        activities: Array.from(document.getElementById('dlActivitiesTbody')?.rows || []).map(row => {
+            const texts = row.querySelectorAll('input[type="text"]');
+            return {
+                contractTask: texts[0]?.value.trim() || '',
+                notes:        texts[1]?.value.trim() || '',
+                signed:       row.querySelector('input[type="checkbox"]')?.checked || false,
+            };
+        }),
+        dailyWorkers:   collectTbl('dlDailyWorkersTbody', ['name', 'profession', 'notes']),
+        subWorkers:     collectTbl('dlSubWorkersTbody',   ['contractor', 'profession', 'notes']),
+        equipment:      collectTbl('dlEquipmentTbody',    ['name', 'quantity', 'notes']),
+        generalNotes:   get('fGeneralNotes'),
+        supervisorNotes: get('fSupervisorNotes'),
+    };
+}
 
 function _nrShowStep(n) {
     [1, 2, 3].forEach(i => {
@@ -190,6 +270,8 @@ export async function nrConfirm() {
         updatedAt:    new Date().toISOString(),
     };
 
+    if (_NR.serviceType === 'daily_log') S.reports[id].dailyLog = _emptyDailyLog();
+
     if (folder) {
         if (!S.folders[folder]) S.folders[folder] = [];
         if (!S.folders[folder].includes(id)) S.folders[folder].push(id);
@@ -244,6 +326,7 @@ function _collectDraftSnapshot() {
             comments: t.comments,
             reading:  t.type === 'range' ? (t.reading ?? null) : undefined,
         })),
+        ...(S.reports[id]?.serviceType === 'daily_log' ? { dailyLog: collectDailyLog() } : {}),
     };
 }
 
@@ -337,6 +420,10 @@ export function recoverDraft(id) {
         }
     }
 
+    if (r.serviceType === 'daily_log' && draft.dailyLog) {
+        renderDailyLog(draft.dailyLog);
+    }
+
     markUnsaved();
     toast('הדוח שוחזר אוטומטית', 'success');
 }
@@ -395,6 +482,19 @@ export function openReport(id) {
     document.getElementById('fCompDate').value = r.tech?.compDate || '';
 
     renderTasks(r.tasks || []);
+
+    // Show/hide sections based on service type
+    const _isDL = r.serviceType === 'daily_log';
+    const _el   = id => document.getElementById(id);
+    if (_el('cardDailyLog'))   _el('cardDailyLog').style.display    = _isDL ? '' : 'none';
+    if (_el('cardTasks'))      _el('cardTasks').style.display        = _isDL ? 'none' : '';
+    if (_el('cardPermComments')) _el('cardPermComments').style.display = _isDL ? 'none' : '';
+    if (_el('cardFinalComments')) _el('cardFinalComments').style.display = _isDL ? 'none' : '';
+    if (_el('cardTechTitle'))      _el('cardTechTitle').textContent      = _isDL ? 'חתימת מנהל עבודה' : 'פרטי הטכנאי';
+    if (_el('lblTechSig'))         _el('lblTechSig').textContent         = _isDL ? 'חתימת מנהל עבודה' : 'חתימת הטכנאי';
+    if (_el('cardCustomerSigTitle')) _el('cardCustomerSigTitle').textContent = _isDL ? 'חתימת מפקח' : 'חתימת לקוח';
+    if (_isDL) renderDailyLog(r.dailyLog || {});
+
     renderImages(r.images || []);
     renderReportAppendices(r.appendices || []);
 
@@ -436,6 +536,7 @@ export async function saveReport() {
         r.permComments  = document.getElementById('fPermComments')?.value         ?? r.permComments;
         r.finalComments = document.getElementById('fFinalComments')?.value        ?? r.finalComments;
         r.tasks         = collectTasks();
+        if (r.serviceType === 'daily_log') r.dailyLog = collectDailyLog();
         r.appendices    = collectReportAppendices();
         r.tech = {
             name:     document.getElementById('fTechName')?.value  ?? r.tech?.name     ?? '',
