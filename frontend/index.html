@@ -401,6 +401,86 @@ window._showLoginWhenSplashDone = false;
                 </div>
             </div>
 
+            <!-- Weld Inspection Section (visible only for weld_inspection service type) -->
+            <div class="card" id="cardWeldInspection" style="display:none;">
+                <div class="card-title">OFCY-WELD-03-03-A — בדיקת ריתוך ויזואלי</div>
+
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="fg"><label class="lbl">Company / חברה</label><input type="text" id="wiCompany" placeholder="שם החברה..." oninput="markUnsaved()"></div>
+                    <div class="fg"><label class="lbl">Job / עבודה</label><input type="text" id="wiJob" placeholder="מס׳ / שם עבודה..." oninput="markUnsaved()"></div>
+                </div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="fg"><label class="lbl">Area / אזור</label><input type="text" id="wiArea" placeholder="אזור..." oninput="markUnsaved()"></div>
+                    <div class="fg"><label class="lbl">Plant Location / מיקום מפעל</label><input type="text" id="wiPlantLocation" placeholder="מיקום..." oninput="markUnsaved()"></div>
+                </div>
+                <div class="form-row" style="margin-bottom:10px;">
+                    <div class="fg"><label class="lbl">QC Code</label><input type="text" id="wiQcCode" placeholder="קוד QC..." oninput="markUnsaved()"></div>
+                    <div class="fg"><label class="lbl">Project Title / כותרת פרויקט</label><input type="text" id="wiProjectTitle" placeholder="כותרת הפרויקט..." oninput="markUnsaved()"></div>
+                </div>
+                <div class="form-row" style="margin-bottom:18px;">
+                    <div class="fg"><label class="lbl">Report No. / מספר דוח</label><input type="text" id="wiReportNo" placeholder="מספר הדוח..." oninput="markUnsaved()"></div>
+                    <div class="fg"><label class="lbl">Date / תאריך</label><input type="date" id="wiDate" oninput="markUnsaved()"></div>
+                </div>
+
+                <div class="dl-section">
+                    <div class="dl-section-title">פרטי צנרת</div>
+                    <div class="form-row" style="margin-bottom:10px;">
+                        <div class="fg"><label class="lbl">Alignment Sheet No.</label><input type="text" id="wiAlignmentSheetNo" placeholder="מס׳ גיליון..." oninput="markUnsaved()"></div>
+                        <div class="fg"><label class="lbl">Thickness / עובי</label><input type="text" id="wiThickness" placeholder="עובי קיר..." oninput="markUnsaved()"></div>
+                    </div>
+                    <div class="form-row" style="margin-bottom:10px;">
+                        <div class="fg"><label class="lbl">Diameter / קוטר</label><input type="text" id="wiDiameter" placeholder="קוטר צינור..." oninput="markUnsaved()"></div>
+                        <div class="fg"><label class="lbl">WPS No.</label><input type="text" id="wiWpsNo" placeholder="מספר WPS..." oninput="markUnsaved()"></div>
+                    </div>
+                    <div class="form-row" style="margin-bottom:6px;">
+                        <div class="fg"><label class="lbl">Material / חומר</label><input type="text" id="wiMaterial" placeholder="סוג חומר..." oninput="markUnsaved()"></div>
+                        <div class="fg"><label class="lbl">Welding Process / תהליך ריתוך</label><input type="text" id="wiWeldingProcess" placeholder="תהליך ריתוך..." oninput="markUnsaved()"></div>
+                    </div>
+                </div>
+
+                <div class="dl-section">
+                    <div class="dl-section-title">טבלת בדיקת ריתוך ויזואלי</div>
+                    <div class="wi-table-wrap">
+                        <table class="dl-table wi-table">
+                            <thead><tr>
+                                <th style="width:28px;">#</th>
+                                <th style="min-width:64px;">K.P.</th>
+                                <th style="min-width:110px;">Item Name (1/2)</th>
+                                <th style="min-width:80px;">Weld No.</th>
+                                <th style="min-width:80px;">Heat No.</th>
+                                <th style="min-width:78px;">Pipe Length</th>
+                                <th style="min-width:88px;">Fit-up &amp; Align.</th>
+                                <th style="min-width:88px;">Welder STAMP</th>
+                                <th style="min-width:82px;">Visual Root</th>
+                                <th style="min-width:82px;">Visual Hot</th>
+                                <th style="min-width:95px;">Visual Fill &amp; Cap</th>
+                                <th style="width:36px;"></th>
+                            </tr></thead>
+                            <tbody id="wiRowsTbody"></tbody>
+                        </table>
+                    </div>
+                    <button class="dl-add-btn" onclick="weldAddRow()">+ הוסף שורת ריתוך חדשה</button>
+                </div>
+
+                <div class="fg" style="margin-top:16px;margin-bottom:18px;">
+                    <label class="lbl">הערות (Remarks)</label>
+                    <textarea id="wiRemarks" rows="3" placeholder="הערות ומידע נוסף..." oninput="markUnsaved()"></textarea>
+                </div>
+
+                <div class="dl-section">
+                    <div class="dl-section-title">פרטי בודקים</div>
+                    <div class="form-row" style="margin-bottom:10px;">
+                        <div class="fg"><label class="lbl">Reviewed / Witnessed By — שם</label><input type="text" id="wiReviewedByName" placeholder="שם המבקר..." oninput="markUnsaved()"></div>
+                        <div class="fg"><label class="lbl">Reviewed / Witnessed By — תאריך</label><input type="date" id="wiReviewedByDate" oninput="markUnsaved()"></div>
+                    </div>
+                    <div class="form-row" style="margin-bottom:6px;">
+                        <div class="fg"><label class="lbl">Reviewed / Approved By — שם</label><input type="text" id="wiApprovedByName" placeholder="שם המאשר..." oninput="markUnsaved()"></div>
+                        <div class="fg"><label class="lbl">Reviewed / Approved By — תאריך</label><input type="date" id="wiApprovedByDate" oninput="markUnsaved()"></div>
+                    </div>
+                    <p style="font-size:11px;color:#94a3b8;margin-top:10px;text-align:right;">חתימת Prepared By ו-Reviewed/Approved By בכרטיסיות החתימות למטה</p>
+                </div>
+            </div>
+
             <!-- Appendices (shown in both modes) -->
             <div class="card" id="cardAppendices" style="display:none;">
                 <div class="card-title">נספחים משלימים</div>
@@ -560,6 +640,10 @@ window._showLoginWhenSplashDone = false;
                 <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'daily_log')">
                     <span class="nr-type-icon">📅</span>
                     <span class="nr-type-label">יומן עבודה יומי</span>
+                </button>
+                <button type="button" class="nr-type-btn" onclick="nrSelectType(this,'weld_inspection')">
+                    <span class="nr-type-icon">🔧</span>
+                    <span class="nr-type-label">בדיקת ריתוך ויזואלי</span>
                 </button>
             </div>
             <div class="modal-actions">

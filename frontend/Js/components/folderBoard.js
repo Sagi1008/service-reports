@@ -9,7 +9,8 @@ const ST_LABELS = {
     fault:     'תקלה',
     extra:     'טיפול נוסף',
     other:     'אחר',
-    daily_log: 'יומן עבודה',
+    daily_log:       'יומן עבודה',
+    weld_inspection: 'ריתוך ויזואלי',
 };
 
 const INTERVAL_LABELS = {

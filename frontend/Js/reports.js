@@ -74,13 +74,148 @@ function _applyReadOnlyMode(r) {
    NEW REPORT WIZARD (3-step: service type → location → template)
 ================================================================ */
 const _NR = { serviceType: '', folder: null, tplId: null };
-const _NR_LABELS = { routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי' };
+const _NR_LABELS = { routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי', weld_inspection: 'בדיקת ריתוך ויזואלי' };
 
 /* ================================================================
    DAILY WORK LOG — helpers
 ================================================================ */
 function _emptyDailyLog() {
     return { dayOfWeek: '', weather: '', projectDesc: '', activities: [], dailyWorkers: [], subWorkers: [], equipment: [], generalNotes: '', supervisorNotes: '' };
+}
+
+/* ================================================================
+   WELD INSPECTION — helpers
+================================================================ */
+function _emptyWeldInspection() {
+    return {
+        company: '', job: '', area: '', plantLocation: '', qcCode: '',
+        projectTitle: '', reportNo: '', date: '',
+        alignmentSheetNo: '', thickness: '', diameter: '', wpsNo: '',
+        material: '', weldingProcess: '',
+        rows: [],
+        remarks: '',
+        reviewedByName: '', reviewedByDate: '',
+        approvedByName: '', approvedByDate: '',
+    };
+}
+
+function _weldRowHtml(data, num) {
+    const inp = (val, ph) => '<input type="text" class="wi-inp" value="' + esc(val || '') + '" placeholder="' + ph + '" oninput="markUnsaved()">';
+    const bgMap = { AS: '#dcfce7', NR: '#fef9c3', NT: '#fee2e2' };
+    const fgMap = { AS: '#166534', NR: '#92400e', NT: '#991b1b' };
+    const sel = (val) => {
+        const bg = bgMap[val] || '';
+        const fg = fgMap[val] || '';
+        const style = bg ? ' style="background:' + bg + ';color:' + fg + ';"' : '';
+        return '<select class="wi-select"' + style + ' onchange="weldSelChange(this)">'
+            + '<option value="">—</option>'
+            + ['AS', 'NR', 'NT'].map(o => '<option value="' + o + '"' + (val === o ? ' selected' : '') + '>' + o + '</option>').join('')
+            + '</select>';
+    };
+    const del = '<button class="dl-del-btn" onclick="weldDelRow(this)">✕</button>';
+    return '<tr>'
+        + '<td class="dl-num wi-num">' + num + '</td>'
+        + '<td>' + inp(data.kp,         'ק.פ.')         + '</td>'
+        + '<td>' + inp(data.itemName,   'שם פריט 1/2')  + '</td>'
+        + '<td>' + inp(data.weldNo,     'מס׳')          + '</td>'
+        + '<td>' + inp(data.heatNo,     'מס׳')          + '</td>'
+        + '<td>' + inp(data.pipeLength, 'אורך')         + '</td>'
+        + '<td>' + sel(data.fitUp)       + '</td>'
+        + '<td>' + sel(data.welderStamp) + '</td>'
+        + '<td>' + sel(data.visualRoot)  + '</td>'
+        + '<td>' + sel(data.visualHot)   + '</td>'
+        + '<td>' + sel(data.visualFillCap) + '</td>'
+        + '<td>' + del + '</td>'
+        + '</tr>';
+}
+
+export function renderWeldInspection(wi = {}) {
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    set('wiCompany',          wi.company);
+    set('wiJob',              wi.job);
+    set('wiArea',             wi.area);
+    set('wiPlantLocation',    wi.plantLocation);
+    set('wiQcCode',           wi.qcCode);
+    set('wiProjectTitle',     wi.projectTitle);
+    set('wiReportNo',         wi.reportNo);
+    set('wiDate',             wi.date);
+    set('wiAlignmentSheetNo', wi.alignmentSheetNo);
+    set('wiThickness',        wi.thickness);
+    set('wiDiameter',         wi.diameter);
+    set('wiWpsNo',            wi.wpsNo);
+    set('wiMaterial',         wi.material);
+    set('wiWeldingProcess',   wi.weldingProcess);
+    set('wiRemarks',          wi.remarks);
+    set('wiReviewedByName',   wi.reviewedByName);
+    set('wiReviewedByDate',   wi.reviewedByDate);
+    set('wiApprovedByName',   wi.approvedByName);
+    set('wiApprovedByDate',   wi.approvedByDate);
+    const tbody = document.getElementById('wiRowsTbody');
+    if (tbody) tbody.innerHTML = (wi.rows || []).map((row, i) => _weldRowHtml(row, i + 1)).join('');
+}
+
+export function weldAddRow() {
+    const tbody = document.getElementById('wiRowsTbody');
+    if (!tbody) return;
+    tbody.insertAdjacentHTML('beforeend', _weldRowHtml({}, tbody.rows.length + 1));
+    markUnsaved();
+}
+
+export function weldDelRow(btn) {
+    const tbody = btn.closest('tr').parentElement;
+    btn.closest('tr').remove();
+    Array.from(tbody.rows).forEach((row, i) => { const c = row.querySelector('.wi-num'); if (c) c.textContent = i + 1; });
+    markUnsaved();
+}
+
+export function weldSelChange(sel) {
+    const bg = { AS: '#dcfce7', NR: '#fef9c3', NT: '#fee2e2' };
+    const fg = { AS: '#166534', NR: '#92400e', NT: '#991b1b' };
+    sel.style.background = bg[sel.value] || '';
+    sel.style.color      = fg[sel.value] || '';
+    markUnsaved();
+}
+
+export function collectWeldInspection() {
+    const get = id => document.getElementById(id)?.value || '';
+    const rows = Array.from(document.getElementById('wiRowsTbody')?.rows || []).map(row => {
+        const texts = row.querySelectorAll('input[type="text"]');
+        const sels  = row.querySelectorAll('select');
+        return {
+            kp:           texts[0]?.value.trim() || '',
+            itemName:     texts[1]?.value.trim() || '',
+            weldNo:       texts[2]?.value.trim() || '',
+            heatNo:       texts[3]?.value.trim() || '',
+            pipeLength:   texts[4]?.value.trim() || '',
+            fitUp:        sels[0]?.value || '',
+            welderStamp:  sels[1]?.value || '',
+            visualRoot:   sels[2]?.value || '',
+            visualHot:    sels[3]?.value || '',
+            visualFillCap: sels[4]?.value || '',
+        };
+    });
+    return {
+        company:          get('wiCompany'),
+        job:              get('wiJob'),
+        area:             get('wiArea'),
+        plantLocation:    get('wiPlantLocation'),
+        qcCode:           get('wiQcCode'),
+        projectTitle:     get('wiProjectTitle'),
+        reportNo:         get('wiReportNo'),
+        date:             get('wiDate'),
+        alignmentSheetNo: get('wiAlignmentSheetNo'),
+        thickness:        get('wiThickness'),
+        diameter:         get('wiDiameter'),
+        wpsNo:            get('wiWpsNo'),
+        material:         get('wiMaterial'),
+        weldingProcess:   get('wiWeldingProcess'),
+        rows,
+        remarks:          get('wiRemarks'),
+        reviewedByName:   get('wiReviewedByName'),
+        reviewedByDate:   get('wiReviewedByDate'),
+        approvedByName:   get('wiApprovedByName'),
+        approvedByDate:   get('wiApprovedByDate'),
+    };
 }
 
 function _dlRowHtml(type, data, num) {
@@ -270,7 +405,8 @@ export async function nrConfirm() {
         updatedAt:    new Date().toISOString(),
     };
 
-    if (_NR.serviceType === 'daily_log') S.reports[id].dailyLog = _emptyDailyLog();
+    if (_NR.serviceType === 'daily_log')      S.reports[id].dailyLog       = _emptyDailyLog();
+    if (_NR.serviceType === 'weld_inspection') S.reports[id].weldInspection = _emptyWeldInspection();
 
     if (folder) {
         if (!S.folders[folder]) S.folders[folder] = [];
@@ -326,7 +462,8 @@ function _collectDraftSnapshot() {
             comments: t.comments,
             reading:  t.type === 'range' ? (t.reading ?? null) : undefined,
         })),
-        ...(S.reports[id]?.serviceType === 'daily_log' ? { dailyLog: collectDailyLog() } : {}),
+        ...(S.reports[id]?.serviceType === 'daily_log'      ? { dailyLog:       collectDailyLog()       } : {}),
+        ...(S.reports[id]?.serviceType === 'weld_inspection' ? { weldInspection: collectWeldInspection() } : {}),
     };
 }
 
@@ -423,6 +560,9 @@ export function recoverDraft(id) {
     if (r.serviceType === 'daily_log' && draft.dailyLog) {
         renderDailyLog(draft.dailyLog);
     }
+    if (r.serviceType === 'weld_inspection' && draft.weldInspection) {
+        renderWeldInspection(draft.weldInspection);
+    }
 
     markUnsaved();
     toast('הדוח שוחזר אוטומטית', 'success');
@@ -485,15 +625,18 @@ export function openReport(id) {
 
     // Show/hide sections based on service type
     const _isDL = r.serviceType === 'daily_log';
+    const _isWI = r.serviceType === 'weld_inspection';
     const _el   = id => document.getElementById(id);
-    if (_el('cardDailyLog'))   _el('cardDailyLog').style.display    = _isDL ? '' : 'none';
-    if (_el('cardTasks'))      _el('cardTasks').style.display        = _isDL ? 'none' : '';
-    if (_el('cardPermComments')) _el('cardPermComments').style.display = _isDL ? 'none' : '';
-    if (_el('cardFinalComments')) _el('cardFinalComments').style.display = _isDL ? 'none' : '';
-    if (_el('cardTechTitle'))      _el('cardTechTitle').textContent      = _isDL ? 'חתימת מנהל עבודה' : 'פרטי הטכנאי';
-    if (_el('lblTechSig'))         _el('lblTechSig').textContent         = _isDL ? 'חתימת מנהל עבודה' : 'חתימת הטכנאי';
-    if (_el('cardCustomerSigTitle')) _el('cardCustomerSigTitle').textContent = _isDL ? 'חתימת מפקח' : 'חתימת לקוח';
+    if (_el('cardDailyLog'))       _el('cardDailyLog').style.display       = _isDL ? '' : 'none';
+    if (_el('cardWeldInspection')) _el('cardWeldInspection').style.display  = _isWI ? '' : 'none';
+    if (_el('cardTasks'))          _el('cardTasks').style.display            = (_isDL || _isWI) ? 'none' : '';
+    if (_el('cardPermComments'))   _el('cardPermComments').style.display     = (_isDL || _isWI) ? 'none' : '';
+    if (_el('cardFinalComments'))  _el('cardFinalComments').style.display    = (_isDL || _isWI) ? 'none' : '';
+    if (_el('cardTechTitle'))      _el('cardTechTitle').textContent          = _isDL ? 'חתימת מנהל עבודה' : _isWI ? 'Prepared By' : 'פרטי הטכנאי';
+    if (_el('lblTechSig'))         _el('lblTechSig').textContent             = _isDL ? 'חתימת מנהל עבודה' : _isWI ? 'חתימת Prepared By' : 'חתימת הטכנאי';
+    if (_el('cardCustomerSigTitle')) _el('cardCustomerSigTitle').textContent = _isDL ? 'חתימת מפקח' : _isWI ? 'Reviewed / Approved By' : 'חתימת לקוח';
     if (_isDL) renderDailyLog(r.dailyLog || {});
+    if (_isWI) renderWeldInspection(r.weldInspection || {});
 
     renderImages(r.images || []);
     renderReportAppendices(r.appendices || []);
@@ -536,7 +679,8 @@ export async function saveReport() {
         r.permComments  = document.getElementById('fPermComments')?.value         ?? r.permComments;
         r.finalComments = document.getElementById('fFinalComments')?.value        ?? r.finalComments;
         r.tasks         = collectTasks();
-        if (r.serviceType === 'daily_log') r.dailyLog = collectDailyLog();
+        if (r.serviceType === 'daily_log')      r.dailyLog       = collectDailyLog();
+        if (r.serviceType === 'weld_inspection') r.weldInspection = collectWeldInspection();
         r.appendices    = collectReportAppendices();
         r.tech = {
             name:     document.getElementById('fTechName')?.value  ?? r.tech?.name     ?? '',
