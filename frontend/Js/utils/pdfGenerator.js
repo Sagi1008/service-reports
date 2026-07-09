@@ -125,7 +125,7 @@ function _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
         </tr>`;
     }).join('');
 
-    const PDF_ST_LABELS  = { routine: 'תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי' };
+    const PDF_ST_LABELS  = { routine: 'תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי', weld_inspection: 'בדיקת ריתוך ויזואלי' };
     const PDF_INT_LABELS = { weekly: 'שבועי', bimonthly: 'דו-שבועי', monthly: 'חודשי', quarterly: 'רבעוני', semiannual: 'חצי שנתי', annual: 'שנתי' };
     const stDisp  = PDF_ST_LABELS[r.serviceType] || '';
     const intDisp = (r.serviceType === 'routine' && r.periodicInterval)
@@ -426,6 +426,175 @@ function _buildDailyLogLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
 }
 
 /* ================================================================
+   WELD INSPECTION PDF LAYOUT
+================================================================ */
+function _buildWeldInspectionLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
+    const wi     = r.weldInspection || {};
+    const docNum = r.number ? esc(r.number) : ('#' + r.id.slice(-8).toUpperCase());
+
+    const logoHtml = logoDataUrl
+        ? '<img src="' + logoDataUrl + '" style="height:48px;width:auto;display:block;">'
+        : '<div style="height:48px;width:48px;background:#1a2640;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:18px;">O</div>';
+
+    const metaRow = (label, value) =>
+        '<tr><td style="background:#f8fafc;border:1px solid #e2e8f0;padding:5px 8px;font-size:9px;font-weight:700;color:#64748b;white-space:nowrap;">' + label + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:5px 8px;font-size:10.5px;color:#1a2640;">' + esc(value || '—') + '</td></tr>';
+
+    const metaTbl = (rows) =>
+        '<table style="border-collapse:collapse;width:100%;">' + rows + '</table>';
+
+    const badge = (val) => {
+        const styles = {
+            AS: 'background:#dcfce7;color:#166534;',
+            NR: 'background:#fef9c3;color:#92400e;',
+            NT: 'background:#fee2e2;color:#991b1b;',
+        };
+        if (!val) return '<span style="color:#94a3b8;">—</span>';
+        return '<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9.5px;font-weight:700;' + (styles[val] || '') + '">' + esc(val) + '</span>';
+    };
+
+    const rows = wi.rows || [];
+    const inspRows = rows.map((row, i) =>
+        '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f8fafc') + ';">'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;font-size:10px;font-weight:700;color:#94a3b8;">' + (i + 1) + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.kp || '') + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.itemName || '') + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.weldNo || '') + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.heatNo || '') + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.pipeLength || '') + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.fitUp) + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.welderStamp) + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.visualRoot) + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.visualHot) + '</td>'
+        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.visualFillCap) + '</td>'
+        + '</tr>'
+    ).join('') || '<tr><td colspan="11" style="border:1px solid #e2e8f0;padding:10px;text-align:center;color:#94a3b8;font-size:10px;">אין שורות בדיקה</td></tr>';
+
+    const thStyle = 'background:#1a2640;color:#fff;border:1px solid #1a2640;padding:5px 4px;font-size:9px;text-align:center;white-space:nowrap;';
+
+    const validSrcs = imgSrcs.filter(Boolean);
+    const imgStyle  = 'width:calc(50% - 6px);max-width:calc(50% - 6px);height:auto;border-radius:6px;border:1px solid #e2e8f0;display:block;';
+    const imagesHtml = validSrcs.length
+        ? '<div style="margin-top:28px;">'
+            + '<div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid #1a2640;padding-bottom:5px;margin-bottom:12px;">תמונות</div>'
+            + '<div style="display:flex;flex-wrap:wrap;gap:12px;">'
+            + validSrcs.map(src => '<img src="' + src + '" style="' + imgStyle + '">').join('')
+            + '</div></div>'
+        : '';
+
+    const sigBox = (sig, label, name) =>
+        '<div style="flex:1;padding:14px 16px;">'
+        + '<div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:6px;">' + label + '</div>'
+        + (sig ? '<img src="' + sig + '" style="height:52px;max-width:100%;object-fit:contain;display:block;margin-bottom:6px;">' : '<div style="height:52px;border-bottom:1px solid #cbd5e1;margin-bottom:6px;"></div>')
+        + '<div style="font-size:11.5px;font-weight:600;color:#1a2640;">' + esc(name || '') + '</div>'
+        + '</div>';
+
+    return `<div style="direction:ltr;font-family:'Heebo',Arial,sans-serif;background:#fff;min-height:297mm;">
+
+      <!-- HEADER -->
+      <div style="background:#1a2640;padding:18px 36px;display:flex;align-items:center;justify-content:space-between;">
+        <div>${logoHtml}</div>
+        <div style="text-align:center;">
+          <div style="color:#fff;font-size:17px;font-weight:900;letter-spacing:0.3px;">Pipeline Welding Visual Inspection Report</div>
+          <div style="color:#94a3b8;font-size:10px;margin-top:3px;">OFCY-WELD-03-03-A | בדיקת ריתוך ויזואלי</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="color:#fff;font-size:11px;font-weight:700;">Report No.</div>
+          <div style="color:#e2e8f0;font-size:13px;font-weight:900;">${esc(wi.reportNo || docNum)}</div>
+          <div style="color:#94a3b8;font-size:10px;margin-top:2px;">${esc(wi.date || '')}</div>
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div style="padding:20px 36px;">
+
+        <!-- Project info (2-col meta tables) -->
+        <div style="display:flex;gap:14px;margin-bottom:16px;">
+          <div style="flex:1;">
+            ${metaTbl(
+              metaRow('Company', wi.company) +
+              metaRow('Job', wi.job) +
+              metaRow('Area', wi.area) +
+              metaRow('Plant Location', wi.plantLocation) +
+              metaRow('QC Code', wi.qcCode) +
+              metaRow('Project Title', wi.projectTitle)
+            )}
+          </div>
+          <div style="flex:1;">
+            ${metaTbl(
+              metaRow('Alignment Sheet No.', wi.alignmentSheetNo) +
+              metaRow('Thickness', wi.thickness) +
+              metaRow('Diameter', wi.diameter) +
+              metaRow('WPS No.', wi.wpsNo) +
+              metaRow('Material', wi.material) +
+              metaRow('Welding Process', wi.weldingProcess)
+            )}
+          </div>
+        </div>
+
+        <!-- Section header -->
+        <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid #1a2640;padding-bottom:5px;margin-bottom:10px;">Weld Inspection Log</div>
+
+        <!-- Inspection table -->
+        <table style="border-collapse:collapse;width:100%;table-layout:fixed;">
+          <colgroup>
+            <col style="width:22px;"><col style="width:48px;"><col style="width:96px;">
+            <col style="width:64px;"><col style="width:64px;"><col style="width:58px;">
+            <col style="width:72px;"><col style="width:76px;">
+            <col style="width:70px;"><col style="width:70px;"><col>
+          </colgroup>
+          <thead><tr>
+            <th style="${thStyle}">#</th>
+            <th style="${thStyle}">K.P.</th>
+            <th style="${thStyle}">Item Name (1/2)</th>
+            <th style="${thStyle}">Weld No.</th>
+            <th style="${thStyle}">Heat No.</th>
+            <th style="${thStyle}">Pipe Length</th>
+            <th style="${thStyle}">Fit-up &amp; Align.</th>
+            <th style="${thStyle}">Welder STAMP</th>
+            <th style="${thStyle}">Visual Root</th>
+            <th style="${thStyle}">Visual Hot</th>
+            <th style="${thStyle}">Visual Fill &amp; Cap</th>
+          </tr></thead>
+          <tbody>${inspRows}</tbody>
+        </table>
+
+        ${wi.remarks ? '<div style="margin-top:16px;"><div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin-bottom:8px;">Remarks / הערות</div><div style="font-size:11px;color:#1a2640;padding:8px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;white-space:pre-wrap;">' + esc(wi.remarks) + '</div></div>' : ''}
+
+        ${imagesHtml}
+
+        <!-- Signatures -->
+        <div style="margin-top:24px;padding-top:14px;border-top:2px solid #1a2640;">
+          <div style="font-size:11px;font-weight:800;color:#1a2640;margin-bottom:10px;">Signatures / חתימות</div>
+          <!-- Reviewed/Witnessed By (text only) -->
+          <div style="display:flex;gap:14px;margin-bottom:12px;">
+            <div style="flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;">
+              <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:6px;">Reviewed / Witnessed By</div>
+              <div style="height:36px;border-bottom:1px solid #cbd5e1;margin-bottom:4px;"></div>
+              <div style="font-size:11px;color:#1a2640;">${esc(wi.reviewedByName || '')}</div>
+              <div style="font-size:10px;color:#64748b;margin-top:2px;">${esc(wi.reviewedByDate || '')}</div>
+            </div>
+          </div>
+          <!-- Prepared By / Approved By (with sig pads) -->
+          <div style="display:flex;gap:0;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
+            ${sigBox(sigTech, 'Prepared By — ' + (r.tech?.name || ''), wi.approvedByDate ? '' : r.tech?.name)}
+            <div style="width:1px;background:#e2e8f0;flex-shrink:0;"></div>
+            ${sigBox(sigCust, 'Reviewed / Approved By', (wi.approvedByName || '') + (wi.approvedByDate ? '  ' + wi.approvedByDate : ''))}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- FOOTER -->
+      <div style="background:#f1f5f9;border-top:1px solid #e2e8f0;padding:8px 36px;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;">
+        <span>Oficiency \xA9 ${new Date().getFullYear()}</span>
+        <span>Generated: ${new Date().toLocaleDateString('en-GB')}</span>
+      </div>
+
+    </div>`;
+}
+
+/* ================================================================
    PDF DOWNLOAD
    Calls window.saveReport to avoid a circular import with reports.js.
    window.saveReport is registered by app.js before any user interaction.
@@ -461,6 +630,8 @@ export async function downloadPDF(returnBlob = false) {
         wrap.style.cssText = 'position:absolute;top:0;left:0;width:850px;min-width:850px;box-sizing:border-box;overflow:visible;background:#fff;font-family:Heebo,Arial,sans-serif;';
         wrap.innerHTML = r.serviceType === 'daily_log'
             ? _buildDailyLogLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs)
+            : r.serviceType === 'weld_inspection'
+            ? _buildWeldInspectionLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs)
             : _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs);
         document.body.appendChild(wrap);
 

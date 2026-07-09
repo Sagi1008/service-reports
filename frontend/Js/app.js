@@ -29,6 +29,7 @@ import {
     exportJSON, downloadPDF, showShareModal, shareTo,
     showAssetMoveModal, executeAssetAction, importAsTemplate,
     dlAddRow, dlDelRow,
+    weldAddRow, weldDelRow, weldSelChange,
 } from './reports.js';
 import { renderHomeDashboard } from './components/HomeTab.js';
 import { renderEquipmentTab } from './components/EquipmentTab.js';
@@ -126,6 +127,11 @@ window.removeTask             = removeTask;
 // Daily Work Log
 window.dlAddRow               = dlAddRow;
 window.dlDelRow               = dlDelRow;
+
+// Weld Inspection
+window.weldAddRow             = weldAddRow;
+window.weldDelRow             = weldDelRow;
+window.weldSelChange          = weldSelChange;
 
 // Image / Appendix UI
 window.handleImages           = handleImages;
