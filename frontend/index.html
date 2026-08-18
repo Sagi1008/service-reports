@@ -243,8 +243,8 @@ window._showLoginWhenSplashDone = false;
                         <input type="text" id="fTitle" placeholder='למשל: בדיקת הגזה' />
                     </div>
                     <div class="fg">
-                        <label class="lbl">שם הלקוח / חברה</label>
-                        <input type="text" id="fCustomer" placeholder="שם הלקוח" />
+                        <label class="lbl">נציג מטעם האתר / לקוח</label>
+                        <input type="text" id="fCustomer" placeholder="שם הנציג / הלקוח" />
                     </div>
                     <div class="fg">
                         <label class="lbl">אתר / מיקום</label>
@@ -647,8 +647,23 @@ window._showLoginWhenSplashDone = false;
                 </button>
             </div>
             <div class="modal-actions">
-                <button class="mbtn mbtn-confirm" id="nrStep1Next" onclick="nrGoStep2()" disabled>המשך ←</button>
+                <button class="mbtn mbtn-confirm" id="nrStep1Next" type="button" disabled>המשך ←</button>
                 <button class="mbtn mbtn-cancel" onclick="hideModal('newReportModal')">ביטול</button>
+            </div>
+        </div>
+        <!-- Step 1b: Report Name -->
+        <div id="nrStep1b" style="display:none">
+            <h3>📝 שם הדוח</h3>
+            <p class="modal-sub">הזן שם מותאם אישית לדוח זה</p>
+            <div class="fg" style="margin-top:14px;">
+                <label class="lbl">שם הדוח</label>
+                <input type="text" id="nrReportName" placeholder='למשל: בדיקת הגזה חודשית...'
+                       onkeydown="if(event.key==='Enter')nrGoStep2()"
+                       style="font-size:14px;padding:10px 12px;">
+            </div>
+            <div class="modal-actions">
+                <button class="mbtn mbtn-confirm" type="button" onclick="nrGoStep2()">המשך ←</button>
+                <button class="mbtn mbtn-cancel" type="button" onclick="nrGoStep1()">→ חזור</button>
             </div>
         </div>
         <!-- Step 2: Location / Folder -->
@@ -657,8 +672,8 @@ window._showLoginWhenSplashDone = false;
             <p class="modal-sub">באיזה אתר מתבצע הטיפול?</p>
             <div id="nrFolderList" style="max-height:260px;overflow-y:auto;margin-top:4px;"></div>
             <div class="modal-actions">
-                <button class="mbtn mbtn-confirm" id="nrStep2NextBtn" onclick="nrGoStep3()">המשך ←</button>
-                <button class="mbtn mbtn-cancel" onclick="nrGoStep1()">→ חזור</button>
+                <button class="mbtn mbtn-confirm" type="button" id="nrStep2NextBtn" onclick="nrGoStep3()">המשך ←</button>
+                <button class="mbtn mbtn-cancel" type="button" onclick="nrGoStep1b()">→ חזור</button>
             </div>
         </div>
         <!-- Step 3: Template (routine visits only) -->

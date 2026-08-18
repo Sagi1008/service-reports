@@ -4,19 +4,23 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
     initializeFirestore, persistentLocalCache, getFirestore,
+    connectFirestoreEmulator,
     doc, setDoc, getDoc, collection, addDoc, getDocs, deleteDoc,
     onSnapshot, serverTimestamp, query, where, updateDoc, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
-    getStorage, ref, uploadBytes, getDownloadURL, deleteObject, getBlob
+    getStorage, ref, uploadBytes, getDownloadURL, deleteObject, getBlob,
+    connectStorageEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 import {
     initializeAuth, browserSessionPersistence, inMemoryPersistence,
     signInWithEmailAndPassword, signOut, onAuthStateChanged,
-    createUserWithEmailAndPassword, updateProfile
+    createUserWithEmailAndPassword, updateProfile,
+    connectAuthEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-// מפתחות החיבור שקיבלת מהקונסול של Firebase שלך
+// Detect local dev — true when served by the Firebase Hosting emulator or any localhost server
+const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
 
 const firebaseConfig = {
   apiKey: "AIzaSyCcqnXeV1VXdMODF0E0wiqGNjkdCVFBHbU",
@@ -45,7 +49,11 @@ console.log('[FIREBASE] apiKey prefix:', firebaseConfig.apiKey.slice(0, 5));
 const app = initializeApp(firebaseConfig);
 let db;
 try {
-    db = initializeFirestore(app, { localCache: persistentLocalCache() });
+    // Skip offline persistence in emulator mode — emulator restarts wipe data so the cache
+    // would serve stale data on the next cold start, which is confusing during development.
+    db = IS_LOCAL
+        ? initializeFirestore(app, {})
+        : initializeFirestore(app, { localCache: persistentLocalCache() });
 } catch (e) {
     console.warn('[FIREBASE] Offline persistence unavailable, falling back:', e.message);
     db = getFirestore(app);
@@ -53,6 +61,15 @@ try {
 const storage = getStorage(app);
 export const auth = initializeAuth(app, { persistence: browserSessionPersistence });
 export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+
+// Point all SDK calls at the local emulators when running on localhost.
+// connectXxxEmulator must be called immediately after init and before any read/write.
+if (IS_LOCAL) {
+    connectFirestoreEmulator(db, 'localhost', 8080);
+    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+    connectStorageEmulator(storage, 'localhost', 9199);
+    console.log('%c[FIREBASE] LOCAL EMULATORS active — Firestore :8080  Auth :9099  Storage :9199  UI → http://localhost:4000', 'color:#34d399;font-weight:bold');
+}
 
 /* ================================================================
    STATE

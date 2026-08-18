@@ -17,7 +17,7 @@ import {
 import {
     preloadLogo,
     showNewReportModal,
-    nrSelectType, nrGoStep1, nrGoStep2, nrGoStep3, nrSelectFolder, nrSelectTpl, nrConfirm,
+    nrSelectType, nrGoStep1, nrGoStep1b, nrGoStep2, nrGoStep3, nrSelectFolder, nrSelectTpl, nrConfirm,
     saveDraft, clearDraft,
     openReport, saveReport, clearReport, deleteReportPrompt, confirmDelete, deleteReportById,
     showTemplateEditor, saveTplEditor, deleteTemplatePrompt,
@@ -63,6 +63,7 @@ window.clearDraft             = clearDraft;
 window.showNewReportModal     = showNewReportModal;
 window.nrSelectType           = nrSelectType;
 window.nrGoStep1              = nrGoStep1;
+window.nrGoStep1b             = nrGoStep1b;
 window.nrGoStep2              = nrGoStep2;
 window.nrGoStep3              = nrGoStep3;
 window.nrSelectFolder         = nrSelectFolder;

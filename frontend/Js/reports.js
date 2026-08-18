@@ -73,7 +73,7 @@ function _applyReadOnlyMode(r) {
 /* ================================================================
    NEW REPORT WIZARD (3-step: service type → location → template)
 ================================================================ */
-const _NR = { serviceType: '', folder: null, tplId: null };
+const _NR = { serviceType: '', folder: null, tplId: null, title: '' };
 const _NR_LABELS = { routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי', weld_inspection: 'בדיקת ריתוך ויזואלי' };
 
 /* ================================================================
@@ -292,9 +292,9 @@ export function collectDailyLog() {
 }
 
 function _nrShowStep(n) {
-    [1, 2, 3].forEach(i => {
+    ['1b', 1, 2, 3].forEach(i => {
         const el = document.getElementById('nrStep' + i);
-        if (el) el.style.display = i === n ? '' : 'none';
+        if (el) el.style.display = (i === n) ? '' : 'none';
     });
 }
 
@@ -302,9 +302,15 @@ export function showNewReportModal() {
     _NR.serviceType = '';
     _NR.folder      = S.currentFolder !== undefined ? S.currentFolder : null;
     _NR.tplId       = null;
+    _NR.title       = '';
+    const nameInput = document.getElementById('nrReportName');
+    if (nameInput) nameInput.value = '';
     document.querySelectorAll('#nrStep1 .nr-type-btn').forEach(b => b.classList.remove('selected'));
     const nextBtn = document.getElementById('nrStep1Next');
-    if (nextBtn) nextBtn.disabled = true;
+    if (nextBtn) {
+        nextBtn.disabled = true;
+        nextBtn.onclick = nrGoStep1b;
+    }
     _nrShowStep(1);
     showModal('newReportModal');
 }
@@ -319,7 +325,13 @@ export function nrSelectType(el, val) {
 
 export function nrGoStep1() { _nrShowStep(1); }
 
+export function nrGoStep1b() {
+    _nrShowStep('1b');
+    setTimeout(() => document.getElementById('nrReportName')?.focus(), 80);
+}
+
 export function nrGoStep2() {
+    _NR.title = document.getElementById('nrReportName')?.value.trim() || '';
     const folders = Object.keys(S.folders);
     const list    = document.getElementById('nrFolderList');
     list.innerHTML = [
@@ -378,7 +390,7 @@ export async function nrConfirm() {
 
     S.reports[id] = {
         id,
-        title:            _NR_LABELS[_NR.serviceType] || 'דוח חדש',
+        title:            _NR.title || _NR_LABELS[_NR.serviceType] || 'דוח חדש',
         customer:         '',
         site:             folder || '',
         visitDate:        t,
@@ -698,7 +710,7 @@ export async function saveReport() {
         clearDraft(savedId);
     } catch (e) {
         console.error('[SAVE] failed:', e);
-        toast('שגיאה בשמירה לשרת – בדוק שהשרת פועל', 'error');
+        toast('שמירת הדו"ח נכשלה', 'error');
     } finally {
         overlay?.classList.add('hidden');
         S.currentId   = savedId;
@@ -707,7 +719,7 @@ export async function saveReport() {
         updateToolbar();
     }
 
-    if (saveOk) { renderSidebar(); toast('הדוח נשמר ✓', 'success'); }
+    if (saveOk) { renderSidebar(); toast('הדו"ח נשמר בהצלחה', 'success'); }
 }
 
 export function clearReport() {
