@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 For the full functional/technical specification, see [docs/SRS.md](docs/SRS.md) — read it before making non-trivial changes. This file only covers what's needed to get productive fast.
 
+Related docs, each answering a different question: [docs/PRD.md](docs/PRD.md) (what to build — prioritized requirements, out-of-scope), [docs/DIAGRAMS.md](docs/DIAGRAMS.md) (UML: use case / class / sequence / activity views of the actual system), [docs/PROCESS.md](docs/PROCESS.md) (how work on this project should be run — methodology choice and why).
+
 **Keep docs/SRS.md current.** Whenever a change alters what's described there — a new capability, a data-model/collection change, an architectural shift, a security-relevant change — update the relevant section of the SRS as part of that change, not as an afterthought. Don't wait to be asked.
 
 ## What this is
