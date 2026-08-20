@@ -1,8 +1,13 @@
 const { chromium } = require('playwright');
 
-const EMAIL = 'sagi.tisson@oficiency.com';
-const PASS  = '***REDACTED***';
+const EMAIL = process.env.OFICIENCY_TEST_EMAIL;
+const PASS  = process.env.OFICIENCY_TEST_PASSWORD;
 const URL   = 'http://localhost:5000';
+
+if (!EMAIL || !PASS) {
+    console.error('Set OFICIENCY_TEST_EMAIL and OFICIENCY_TEST_PASSWORD env vars before running this script.');
+    process.exit(1);
+}
 const TIMEOUT = 15000;
 
 let consoleErrors = [];

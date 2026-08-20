@@ -1,8 +1,98 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // The ONLY way a real Firebase Auth account is created in this app
+    // is via admin approval (api.js: apiApproveRegistration). There is
+    // no public self-service sign-up path, so "signed in" already means
+    // "approved technician" given the app's current design.
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email.lower() == 'sagi.tisson@oficiency.com';
+    }
+
+    function reportOwner(data) {
+      return (data.report_data != null && 'createdBy' in data.report_data)
+        ? data.report_data.createdBy
+        : '';
+    }
+
+    // Reports saved before the createdBy field existed are treated as
+    // editable by anyone, mirroring canEditReport() in Js/api.js.
+    function canEditReport(data) {
+      let owner = reportOwner(data);
+      return isAdmin() || owner == '' || owner == request.auth.token.email;
+    }
+
+    // ── Service reports ──────────────────────────────────────────
+    match /reports/{reportId} {
+      allow read:           if isSignedIn();
+      allow create:         if isSignedIn();
+      allow update, delete: if isSignedIn() && canEditReport(resource.data);
+    }
+
+    // ── Shared app state: folders / templates / task counter ──────
+    // persist() overwrites this single document wholesale for every
+    // technician action that touches folders or templates (not just
+    // admin actions), so it cannot be locked to admin-only writes
+    // without breaking normal report/template workflows.
+    match /config/appstate {
+      allow read, write: if isSignedIn();
+    }
+
+    // ── Site documents & procedures ────────────────────────────────
+    match /attachments/{docId} {
+      allow read, create, delete: if isSignedIn();
+    }
+    match /procedures/{docId} {
+      allow read, create, delete: if isSignedIn();
+    }
+
+    // ── Equipment inventory ────────────────────────────────────────
+    match /equipment/{itemId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // ── Equipment handover audit log — append-only ─────────────────
+    match /equipment_logs/{logId} {
+      allow read, create:   if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Registration requests — CONTAINS PLAINTEXT PASSWORDS ───────
+    // Anyone may submit one (the public sign-up form, before an Auth
+    // account exists). Only the admin may approve/reject/revoke.
+    // Reads are limited to the admin or the requester's own record.
+    // NOTE: apiGetApprovedUsers() (used by the non-admin equipment
+    // handover picker) queries across ALL users' records, so it will
+    // now be denied for non-admins — see chat for the proper fix
+    // (a separate password-free "approved users" directory).
+    match /registration_requests/{reqId} {
+      allow create: if request.resource.data.status == 'pending'
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() > 0
+                    && request.resource.data.password is string
+                    && request.resource.data.password.size() >= 6;
+      allow read:           if isAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Auto-saved report drafts ─────────────────────────────────────
+    // Same sensitivity as the report itself (already broadly readable
+    // above), so no extra ownership check is added here.
+    match /report_drafts/{draftId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // ── Deny everything else by default ──────────────────────────────
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

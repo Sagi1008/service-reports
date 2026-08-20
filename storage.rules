@@ -1,8 +1,38 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // NOTE: We deliberately do NOT cross-check report ownership here via
+    // firestore.get()/firestore.exists(). That cross-service capability
+    // is unreliable in the local emulator (a long-standing documented bug:
+    // github.com/firebase/firebase-tools/issues/5251) and could not be
+    // verified to actually enforce anything — shipping an unverifiable
+    // "looks secure but silently isn't" rule is worse than a simple one.
+    // Real protection for report CONTENT integrity is enforced at the
+    // Firestore layer (see firestore.rules: only the report's owner or
+    // admin can update the reports/{reportId} document itself). Even if
+    // a non-owner uploaded a file here, it could never be linked into
+    // the actual report — that update would be rejected by Firestore.
+    match /reports/{reportId}/{fileName} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Site documents & procedures — any approved user may upload or
+    // remove these, matching the current UI (no admin gating there).
+    match /attachments/{folderName}/{fileName} {
+      allow read, write: if isSignedIn();
+    }
+    match /procedures/{folderName}/{fileName} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Deny everything else by default
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

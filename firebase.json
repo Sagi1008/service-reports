@@ -11,6 +11,7 @@
     "rules": "firestore.rules"
   },
   "storage": {
+    "bucket": "oficiency-1bbf9.firebasestorage.app",
     "rules": "storage.rules"
   },
   "emulators": {
