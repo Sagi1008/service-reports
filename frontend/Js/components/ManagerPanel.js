@@ -1,4 +1,4 @@
-import { apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration, apiGetApprovedUsers, apiRevokeUserAccess, apiSubscribeRecentHandoverLogs } from '../api.js';
+import { apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration, apiGetApprovedUsers, apiRevokeUserAccess, apiSubscribeRecentHandoverLogs, apiBackfillTeamDirectory } from '../api.js';
 import { toast } from '../ui.js';
 
 /* ================================================================
@@ -178,6 +178,11 @@ export async function setupManagerPanel() {
         _mgrLogs = logs;
         _renderLogs();
     });
+
+    // Keeps the password-free team_directory collection in sync with
+    // already-approved users (one-time-per-login, idempotent) so the
+    // equipment handover picker shows the full team to non-admins too.
+    await apiBackfillTeamDirectory().catch(e => console.warn('[MGR] team directory backfill failed:', e.message));
 
     await _fetchTeam();
 }

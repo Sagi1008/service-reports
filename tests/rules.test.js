@@ -146,6 +146,19 @@ async function check(label, fn) {
     await check('signed-in tech can create a handover log', () =>
         assertSucceeds(addDoc(collection(dbA, 'equipment_logs'), { senderName: 'A', recipientName: 'B', tools: [] })));
 
+    console.log('\n== FIRESTORE: team_directory (password-free) ==');
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'team_directory', TECH_A), { name: 'Tech A', email: TECH_A });
+    });
+    await check('anon cannot read the team directory', () =>
+        assertFails(getDoc(doc(dbAnon, 'team_directory', TECH_A))));
+    await check('any signed-in tech CAN read the team directory', () =>
+        assertSucceeds(getDoc(doc(dbB, 'team_directory', TECH_A))));
+    await check('non-admin CANNOT write the team directory', () =>
+        assertFails(setDoc(doc(dbB, 'team_directory', TECH_B), { name: 'Tech B', email: TECH_B })));
+    await check('admin CAN write the team directory', () =>
+        assertSucceeds(setDoc(doc(dbAdmin, 'team_directory', TECH_B), { name: 'Tech B', email: TECH_B })));
+
     console.log('\n== FIRESTORE: default deny ==');
     await check('unknown collection is denied even for admin', () =>
         assertFails(setDoc(doc(dbAdmin, 'some_future_collection', 'x'), { a: 1 })));

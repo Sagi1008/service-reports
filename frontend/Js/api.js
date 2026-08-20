@@ -617,6 +617,7 @@ export async function apiApproveRegistration(docId, name, email, password) {
         status:     'approved',
         approvedAt: serverTimestamp(),
     });
+    await apiSyncTeamDirectory(name, email);
 }
 
 /** דחיית בקשה: מחיקה מ-Firebase Auth ועדכון סטטוס ב-Firestore */
@@ -755,12 +756,13 @@ export async function apiDeleteEquipment(id) {
     await deleteDoc(doc(db, "equipment", id));
 }
 
+/** Reads the password-free public team directory (name + email only).
+ *  Any signed-in user may read this — see firestore.rules. It is kept in
+ *  sync with approved registration_requests by apiSyncTeamDirectory() /
+ *  apiBackfillTeamDirectory() below, since registration_requests itself
+ *  also stores plaintext passwords and can no longer be broadly read. */
 export async function apiGetApprovedUsers() {
-    const q = query(
-        collection(db, 'registration_requests'),
-        where('status', '==', 'approved')
-    );
-    const snap = await getDocs(q);
+    const snap = await getDocs(collection(db, 'team_directory'));
     const users = [];
     snap.forEach(d => {
         const data = d.data();
@@ -769,12 +771,43 @@ export async function apiGetApprovedUsers() {
     return users.sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
+/** Upserts a {name, email} entry into the public team directory. Admin-only
+ *  write per firestore.rules. Email is used as the document id. */
+async function apiSyncTeamDirectory(name, email) {
+    await setDoc(doc(db, 'team_directory', email), _sanitize({ name, email, updatedAt: new Date().toISOString() }));
+}
+
+/** Removes a user from the public team directory (called on access revoke). */
+async function apiRemoveFromTeamDirectory(email) {
+    try { await deleteDoc(doc(db, 'team_directory', email)); } catch (e) { console.warn('[TEAM DIR] remove failed:', e.message); }
+}
+
+/** One-time (idempotent) backfill: mirrors every already-approved
+ *  registration_requests record into team_directory. Safe to call on every
+ *  admin login — setDoc overwrites are cheap and harmless if already synced.
+ *  Only the admin can call this successfully (registration_requests reads
+ *  and team_directory writes are both admin-only per firestore.rules). */
+export async function apiBackfillTeamDirectory() {
+    const q = query(
+        collection(db, 'registration_requests'),
+        where('status', '==', 'approved')
+    );
+    const snap = await getDocs(q);
+    const jobs = [];
+    snap.forEach(d => {
+        const data = d.data();
+        if (data.name && data.email) jobs.push(apiSyncTeamDirectory(data.name, data.email));
+    });
+    await Promise.all(jobs);
+}
+
 /** ביטול גישה: מחיקת חשבון Firebase Auth ועדכון סטטוס ב-Firestore */
 export async function apiRevokeUserAccess(docId) {
     const reqSnap = await getDoc(doc(db, 'registration_requests', docId));
     if (reqSnap.exists()) {
         const { email, password } = reqSnap.data();
         if (email && password) await _deleteAuthAccount(email, password);
+        if (email) await apiRemoveFromTeamDirectory(email);
     }
     await updateDoc(doc(db, 'registration_requests', docId), {
         status:    'rejected',

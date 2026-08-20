@@ -83,6 +83,17 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ── Public team directory (name + email only, NO password) ────────
+    // Kept in sync with approved registration_requests by
+    // apiSyncTeamDirectory() / apiBackfillTeamDirectory() in api.js.
+    // This is what lets non-admin technicians see the full team list in
+    // the equipment handover picker, without exposing registration_requests
+    // (which does contain plaintext passwords) to them.
+    match /team_directory/{email} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // ── Auto-saved report drafts ─────────────────────────────────────
     // Same sensitivity as the report itself (already broadly readable
     // above), so no extra ownership check is added here.
