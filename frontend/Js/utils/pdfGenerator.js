@@ -102,6 +102,12 @@ function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRe
     const headerTopPx   = headerRect ? Math.round(headerRect.top * scaleFactor) : 0;
 
     const safeBreaksPx = Array.from(new Set(safeBreaksCss.map(v => Math.round(v * scaleFactor)))).sort((a, b) => a - b);
+    // The table's true end is the bottom of its own last row — derived from
+    // the same measurements as safeBreaksPx (its max, since it's sorted
+    // ascending) rather than a separately-measured <table> boundary, so it
+    // can never be off by the rounding/border pixel that caused the header
+    // to still show up on the first non-table continuation page.
+    const tableBottomPx = headerRect && safeBreaksPx.length ? safeBreaksPx[safeBreaksPx.length - 1] : null;
 
     const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfW, pageHeightMm] });
     let y = 0;
@@ -109,7 +115,13 @@ function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRe
 
     while (y < canvas.height) {
         const isFirstPage = pageNum === 0;
-        const budget    = pageHeightPx - marginPx - (isFirstPage ? 0 : headerPx);
+        // Only repeat the table header if this page actually starts inside
+        // the table (there are more rows still to come) — a page that
+        // begins with the images/notes/signatures *after* the table ends
+        // must not be stamped with a dangling "# / description / status"
+        // row that has nothing to do with what follows it.
+        const showHeader = !isFirstPage && headerRect && (tableBottomPx == null || y < tableBottomPx);
+        const budget    = pageHeightPx - marginPx - (showHeader ? headerPx : 0);
         const remaining = canvas.height - y;
 
         let sliceEndY;
@@ -124,7 +136,7 @@ function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRe
         if (pageNum > 0) pdf.addPage([pdfW, pageHeightMm], 'p');
 
         let pageCanvas;
-        if (!isFirstPage && headerRect) {
+        if (showHeader) {
             pageCanvas = document.createElement('canvas');
             pageCanvas.width  = canvas.width;
             pageCanvas.height = headerPx + sliceH;
@@ -753,7 +765,11 @@ export async function downloadPDF(returnBlob = false) {
         // Record the tasks table's header row position (in CSS px, relative to
         // wrap) *before* capture/removal, so continuation pages can repeat it —
         // only when there's exactly one table, so daily-log/weld-inspection
-        // reports (several distinct tables) don't repeat the wrong one.
+        // reports (several distinct tables) don't repeat the wrong one. The
+        // table's own bottom edge (for deciding when to stop repeating the
+        // header) is derived later from the same row measurements as
+        // safeBreaksCss below, rather than a separate table.bottom read, so
+        // the two can never disagree by a rounding/border pixel.
         let headerRect = null;
         const theadEls = wrap.querySelectorAll('table thead');
         if (theadEls.length === 1) {
