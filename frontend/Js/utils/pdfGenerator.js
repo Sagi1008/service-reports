@@ -68,20 +68,40 @@ function _sliceCanvas(source, sy, sh) {
     return c;
 }
 
+/** Finds the largest value in a sorted-ascending array that is > `from` and
+ *  <= `upTo`, or null if none qualifies. Used to snap a page break onto a
+ *  real DOM row boundary instead of guessing from pixel colors. */
+function _nearestSafeBreak(sortedBreaksPx, from, upTo) {
+    let best = null;
+    for (const b of sortedBreaksPx) {
+        if (b <= from) continue;
+        if (b > upTo) break; // sorted ascending — nothing further will qualify either
+        best = b;
+    }
+    return best;
+}
+
 /** Splits a tall html2canvas capture into standard A4 pages instead of one giant
- *  custom-height page. Each break point is nudged to the nearest whitespace row
- *  via _bestPageCut so a page break never lands mid-row/mid-task. If headerRect
- *  is given (the tasks table's <thead>, in the *unscaled* CSS pixels it was
- *  measured in), that strip is re-drawn at the top of every continuation page
- *  so a multi-page task table still reads like a table on page 2+, not a
- *  headerless list. */
-function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRect = null, cssWidth = 850 } = {}) {
+ *  custom-height page. Every break point snaps onto a real DOM row boundary
+ *  (safeBreaksCss — the bottom edge of every <tr>, measured before capture) so
+ *  a page break can never land mid-row; a pixel-based whitespace scan
+ *  (_bestPageCut) is only a fallback for content with no row to snap to (e.g.
+ *  a long notes paragraph). bottomMarginMm is left blank on every page — like
+ *  a normal document footer — so the page-number stamp never overlaps real
+ *  content. If headerRect is given (the tasks table's <thead>, in the
+ *  *unscaled* CSS pixels it was measured in), that strip is re-drawn at the
+ *  top of every continuation page so a multi-page task table still reads
+ *  like a table on page 2+, not a headerless list. */
+function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRect = null, cssWidth = 850, safeBreaksCss = [], bottomMarginMm = 16 } = {}) {
     const { jsPDF } = window.jspdf;
     const scaleFactor  = canvas.width / cssWidth; // matches html2canvas's `scale` option
     const pxPerMm       = canvas.width / pdfW;
     const pageHeightPx  = Math.floor(pageHeightMm * pxPerMm);
+    const marginPx       = Math.round(bottomMarginMm * pxPerMm);
     const headerPx      = headerRect ? Math.round(headerRect.height * scaleFactor) : 0;
     const headerTopPx   = headerRect ? Math.round(headerRect.top * scaleFactor) : 0;
+
+    const safeBreaksPx = Array.from(new Set(safeBreaksCss.map(v => Math.round(v * scaleFactor)))).sort((a, b) => a - b);
 
     const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfW, pageHeightMm] });
     let y = 0;
@@ -89,11 +109,17 @@ function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRe
 
     while (y < canvas.height) {
         const isFirstPage = pageNum === 0;
-        const budget    = pageHeightPx - (isFirstPage ? 0 : headerPx);
+        const budget    = pageHeightPx - marginPx - (isFirstPage ? 0 : headerPx);
         const remaining = canvas.height - y;
-        let sliceH = Math.min(budget, remaining);
-        if (sliceH < remaining) sliceH = _bestPageCut(canvas, y, sliceH);
-        sliceH = Math.max(1, sliceH);
+
+        let sliceEndY;
+        if (budget >= remaining) {
+            sliceEndY = canvas.height; // last page — take whatever's left, no need to hunt for a break
+        } else {
+            const safeEnd = _nearestSafeBreak(safeBreaksPx, y, y + budget);
+            sliceEndY = safeEnd != null ? safeEnd : (y + _bestPageCut(canvas, y, budget));
+        }
+        const sliceH = Math.max(1, sliceEndY - y);
 
         if (pageNum > 0) pdf.addPage([pdfW, pageHeightMm], 'p');
 
@@ -116,15 +142,17 @@ function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRe
         pageNum++;
     }
 
-    // Page numbers only once there's more than one page — digits render fine in
-    // jsPDF's built-in font, but it has no Hebrew glyphs, so keep this numeric-only.
+    // Page numbers, centered in the reserved blank bottom margin so they never
+    // sit on top of content. Digits render fine in jsPDF's built-in font, but
+    // it has no Hebrew glyphs, so this stays numeric-only ("3 / 4").
     const totalPages = pageNum;
     if (totalPages > 1) {
+        const numberY = pageHeightMm - bottomMarginMm / 2;
         for (let i = 1; i <= totalPages; i++) {
             pdf.setPage(i);
             pdf.setFontSize(8);
             pdf.setTextColor(148, 163, 184);
-            pdf.text(`${i} / ${totalPages}`, pdfW - 10, pageHeightMm - 6, { align: 'right' });
+            pdf.text(`${i} / ${totalPages}`, pdfW - 10, numberY, { align: 'right' });
         }
     }
 
@@ -733,6 +761,11 @@ export async function downloadPDF(returnBlob = false) {
             headerRect = { top: th.top - rect.top, height: th.height };
         }
 
+        // Every table row's bottom edge is a safe place to break a page —
+        // never mid-row. Measured now, while wrap is still in the live DOM.
+        const safeBreaksCss = Array.from(wrap.querySelectorAll('tr'))
+            .map(tr => tr.getBoundingClientRect().bottom - rect.top);
+
         const canvas = await html2canvas(wrap, {
             scale: 2,
             useCORS: true,
@@ -746,9 +779,10 @@ export async function downloadPDF(returnBlob = false) {
         });
         document.body.removeChild(wrap);
 
-        // Standard A4 pages, split at whitespace so a page break never lands
-        // mid-row, with the task-table header repeated on continuation pages.
-        const pdf = _paginateCanvasToPdf(canvas, { pdfW: 210, pageHeightMm: 297, headerRect });
+        // Standard A4 pages, split exactly on row boundaries (never mid-row),
+        // with a blank bottom margin for the page number and the task-table
+        // header repeated on continuation pages.
+        const pdf = _paginateCanvasToPdf(canvas, { pdfW: 210, pageHeightMm: 297, headerRect, safeBreaksCss });
 
         const filename = `${r.title || 'דוח'}.pdf`;
         if (returnBlob) return pdf.output('blob');
