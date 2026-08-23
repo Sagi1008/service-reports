@@ -180,7 +180,7 @@ function _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
             + '</tr></thead>'
             + '<tbody>' + taskRows + '</tbody>'
             + '</table></div>'
-        : '<div style="width:850px !important;min-width:850px !important;height:1px;background:transparent;display:block;clear:both;"></div>';
+        : '<div style="width:100%;height:1px;background:transparent;display:block;clear:both;"></div>';
 
     // Final comments — pre-computed
     const finalCommentsHtml = r.finalComments
@@ -199,7 +199,7 @@ function _buildPrintLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
             + '<div style="display:flex;flex-wrap:wrap;gap:12px;">'
             + validSrcs.map(src => '<img src="' + src + '" style="' + imgStyle + '">').join('')
             + '</div></div>'
-        : '<div style="width:850px !important;min-width:850px !important;height:50px;display:block;clear:both;"></div>';
+        : '<div style="width:100%;height:50px;display:block;clear:both;"></div>';
 
     // Signature box — string concat, no nested template literals
     const sigBox = function(sig, label, name, date) {
@@ -665,7 +665,13 @@ export async function downloadPDF(returnBlob = false) {
         const { jsPDF } = window.jspdf;
         const pdfW = 210;
         const pdfH = Math.ceil((canvas.height / canvas.width) * pdfW);
-        const pdf  = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfW, pdfH] });
+        // jsPDF silently swaps width/height to stay portrait whenever the
+        // requested format is wider than it is tall (happens for short
+        // reports — no tasks and no images — where content height < 210mm).
+        // orientation must match that swap, or addImage below draws onto a
+        // page narrower than the image, clipping the right side off.
+        const orientation = pdfH >= pdfW ? 'p' : 'l';
+        const pdf = new jsPDF({ orientation, unit: 'mm', format: [pdfW, pdfH] });
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, pdfW, pdfH);
 
         const filename = `${r.title || 'דוח'}.pdf`;
