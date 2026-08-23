@@ -59,6 +59,78 @@ function _bestPageCut(canvas, startY, pageH) {
     return pageH;
 }
 
+/** Crops a horizontal strip [sy, sy+sh) out of a source canvas into a new canvas. */
+function _sliceCanvas(source, sy, sh) {
+    const c = document.createElement('canvas');
+    c.width = source.width;
+    c.height = Math.max(1, Math.round(sh));
+    c.getContext('2d').drawImage(source, 0, sy, source.width, c.height, 0, 0, source.width, c.height);
+    return c;
+}
+
+/** Splits a tall html2canvas capture into standard A4 pages instead of one giant
+ *  custom-height page. Each break point is nudged to the nearest whitespace row
+ *  via _bestPageCut so a page break never lands mid-row/mid-task. If headerRect
+ *  is given (the tasks table's <thead>, in the *unscaled* CSS pixels it was
+ *  measured in), that strip is re-drawn at the top of every continuation page
+ *  so a multi-page task table still reads like a table on page 2+, not a
+ *  headerless list. */
+function _paginateCanvasToPdf(canvas, { pdfW = 210, pageHeightMm = 297, headerRect = null, cssWidth = 850 } = {}) {
+    const { jsPDF } = window.jspdf;
+    const scaleFactor  = canvas.width / cssWidth; // matches html2canvas's `scale` option
+    const pxPerMm       = canvas.width / pdfW;
+    const pageHeightPx  = Math.floor(pageHeightMm * pxPerMm);
+    const headerPx      = headerRect ? Math.round(headerRect.height * scaleFactor) : 0;
+    const headerTopPx   = headerRect ? Math.round(headerRect.top * scaleFactor) : 0;
+
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfW, pageHeightMm] });
+    let y = 0;
+    let pageNum = 0;
+
+    while (y < canvas.height) {
+        const isFirstPage = pageNum === 0;
+        const budget    = pageHeightPx - (isFirstPage ? 0 : headerPx);
+        const remaining = canvas.height - y;
+        let sliceH = Math.min(budget, remaining);
+        if (sliceH < remaining) sliceH = _bestPageCut(canvas, y, sliceH);
+        sliceH = Math.max(1, sliceH);
+
+        if (pageNum > 0) pdf.addPage([pdfW, pageHeightMm], 'p');
+
+        let pageCanvas;
+        if (!isFirstPage && headerRect) {
+            pageCanvas = document.createElement('canvas');
+            pageCanvas.width  = canvas.width;
+            pageCanvas.height = headerPx + sliceH;
+            const ctx = pageCanvas.getContext('2d');
+            ctx.drawImage(canvas, 0, headerTopPx, canvas.width, headerPx, 0, 0, canvas.width, headerPx);
+            ctx.drawImage(canvas, 0, y, canvas.width, sliceH, 0, headerPx, canvas.width, sliceH);
+        } else {
+            pageCanvas = _sliceCanvas(canvas, y, sliceH);
+        }
+
+        const sliceHmm = (pageCanvas.height / canvas.width) * pdfW;
+        pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, pdfW, sliceHmm);
+
+        y += sliceH;
+        pageNum++;
+    }
+
+    // Page numbers only once there's more than one page — digits render fine in
+    // jsPDF's built-in font, but it has no Hebrew glyphs, so keep this numeric-only.
+    const totalPages = pageNum;
+    if (totalPages > 1) {
+        for (let i = 1; i <= totalPages; i++) {
+            pdf.setPage(i);
+            pdf.setFontSize(8);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text(`${i} / ${totalPages}`, pdfW - 10, pageHeightMm - 6, { align: 'right' });
+        }
+    }
+
+    return pdf;
+}
+
 /* ================================================================
    PRINT LAYOUT — self-contained A4 HTML for html2canvas
    dir=rtl, Heebo font, no external stylesheet dependencies.
@@ -649,6 +721,18 @@ export async function downloadPDF(returnBlob = false) {
         await document.fonts.ready;
 
         const rect = wrap.getBoundingClientRect();
+
+        // Record the tasks table's header row position (in CSS px, relative to
+        // wrap) *before* capture/removal, so continuation pages can repeat it —
+        // only when there's exactly one table, so daily-log/weld-inspection
+        // reports (several distinct tables) don't repeat the wrong one.
+        let headerRect = null;
+        const theadEls = wrap.querySelectorAll('table thead');
+        if (theadEls.length === 1) {
+            const th = theadEls[0].getBoundingClientRect();
+            headerRect = { top: th.top - rect.top, height: th.height };
+        }
+
         const canvas = await html2canvas(wrap, {
             scale: 2,
             useCORS: true,
@@ -662,17 +746,9 @@ export async function downloadPDF(returnBlob = false) {
         });
         document.body.removeChild(wrap);
 
-        const { jsPDF } = window.jspdf;
-        const pdfW = 210;
-        const pdfH = Math.ceil((canvas.height / canvas.width) * pdfW);
-        // jsPDF silently swaps width/height to stay portrait whenever the
-        // requested format is wider than it is tall (happens for short
-        // reports — no tasks and no images — where content height < 210mm).
-        // orientation must match that swap, or addImage below draws onto a
-        // page narrower than the image, clipping the right side off.
-        const orientation = pdfH >= pdfW ? 'p' : 'l';
-        const pdf = new jsPDF({ orientation, unit: 'mm', format: [pdfW, pdfH] });
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, pdfW, pdfH);
+        // Standard A4 pages, split at whitespace so a page break never lands
+        // mid-row, with the task-table header repeated on continuation pages.
+        const pdf = _paginateCanvasToPdf(canvas, { pdfW: 210, pageHeightMm: 297, headerRect });
 
         const filename = `${r.title || 'דוח'}.pdf`;
         if (returnBlob) return pdf.output('blob');
