@@ -13,13 +13,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/variables.css?v=1.5.22">
-    <link rel="stylesheet" href="css/global.css?v=1.5.22">
-    <link rel="stylesheet" href="css/auth.css?v=1.5.22">
-    <link rel="stylesheet" href="css/layout.css?v=1.5.22">
-    <link rel="stylesheet" href="css/components.css?v=1.5.22">
-    <link rel="stylesheet" href="css/reports.css?v=1.5.22">
-    <link rel="stylesheet" href="css/dashboard.css?v=1.5.22">
+    <link rel="stylesheet" href="css/variables.css?v=1.5.23">
+    <link rel="stylesheet" href="css/global.css?v=1.5.23">
+    <link rel="stylesheet" href="css/auth.css?v=1.5.23">
+    <link rel="stylesheet" href="css/layout.css?v=1.5.23">
+    <link rel="stylesheet" href="css/components.css?v=1.5.23">
+    <link rel="stylesheet" href="css/reports.css?v=1.5.23">
+    <link rel="stylesheet" href="css/dashboard.css?v=1.5.23">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -150,13 +150,13 @@ window._showLoginWhenSplashDone = false;
         <div class="sidebar-logo" id="sidebarLogo" onclick="navToDashboard()">
             <img src="assets/Oficiency%20white%20LOGO.png" alt="Oficiency Logo" class="company-logo">
         </div>
-        <button class="btn-new-folder" onclick="showModal('createFolderModal')">+ תיקייה חדשה</button>
+        <button class="btn-new-folder" onclick="showModal('createFolderModal')">תיקייה חדשה</button>
     </div>
 
     <div class="sidebar-body" id="sidebarBody"></div>
 
     <div class="sidebar-footer">
-        <button class="btn-sb-primary" onclick="showNewReportModal()">+ דוח חדש</button>
+        <button class="btn-sb-primary" onclick="showNewReportModal()">דוח חדש</button>
         <button id="adminPanelBtn" class="btn-admin-panel hidden" onclick="showAdminPanel()">
             בקשות הרשמה
             <span id="adminBadge" class="admin-badge hidden">0</span>
@@ -201,7 +201,7 @@ window._showLoginWhenSplashDone = false;
 
         <div class="empty-state" id="emptyState">
             <h2>אין דוח פתוח</h2>
-            <p>בחר דוח מהרשימה, לחץ <strong>"+ דוח חדש"</strong>, או פתח תבנית</p>
+            <p>בחר דוח מהרשימה, לחץ <strong>"דוח חדש"</strong>, או פתח תבנית</p>
         </div>
 
         <div class="report-editor" id="reportEditor" style="display:none">
@@ -293,21 +293,21 @@ window._showLoginWhenSplashDone = false;
                 <div class="task-bulk-bar hidden" id="taskBulkBar">
                     <span id="taskBulkBarLabel">0 משימות נבחרו</span>
                     <div class="task-bulk-bar-actions">
-                        <button class="task-bulk-bar-dup" onclick="duplicateSelectedTasks()">⧉ שכפל נבחרים</button>
+                        <button class="task-bulk-bar-dup" onclick="duplicateSelectedTasks()">שכפל נבחרים</button>
                         <button class="task-bulk-bar-clear" onclick="clearTaskSelection()">נקה בחירה</button>
                     </div>
                 </div>
                 <div id="tasksList"></div>
                 <div class="task-add-row">
                     <div class="add-task-split">
-                        <span class="add-task-btn-label">+ הוסף משימה ▾</span>
+                        <span class="add-task-btn-label">הוסף משימה</span>
                         <select class="add-task-type-select" onchange="handleAddTaskType(this)">
-                            <option value="">+ הוסף משימה</option>
+                            <option value="" hidden>הוסף משימה</option>
                             <option value="task">משימה רגילה (תקין / לא תקין)</option>
                             <option value="range">משימת ערך (מדד מספרי)</option>
                         </select>
                     </div>
-                    <button class="btn-add-section" onclick="addSectionTitle()">+ קטגוריה</button>
+                    <button class="btn-add-section" onclick="addSectionTitle()">קטגוריה</button>
                 </div>
             </div>
 
@@ -350,7 +350,7 @@ window._showLoginWhenSplashDone = false;
                         </tr></thead>
                         <tbody id="dlActivitiesTbody"></tbody>
                     </table>
-                    <button class="dl-add-btn" onclick="dlAddRow('activities')">+ הוסף שורה</button>
+                    <button class="dl-add-btn" onclick="dlAddRow('activities')">הוסף שורה</button>
                 </div>
                 <!-- Daily workers -->
                 <div class="dl-section">
@@ -365,7 +365,7 @@ window._showLoginWhenSplashDone = false;
                         </tr></thead>
                         <tbody id="dlDailyWorkersTbody"></tbody>
                     </table>
-                    <button class="dl-add-btn" onclick="dlAddRow('dailyWorkers')">+ הוסף פועל</button>
+                    <button class="dl-add-btn" onclick="dlAddRow('dailyWorkers')">הוסף פועל</button>
                 </div>
                 <!-- Subcontractors -->
                 <div class="dl-section">
@@ -380,7 +380,7 @@ window._showLoginWhenSplashDone = false;
                         </tr></thead>
                         <tbody id="dlSubWorkersTbody"></tbody>
                     </table>
-                    <button class="dl-add-btn" onclick="dlAddRow('subWorkers')">+ הוסף קבלן משנה</button>
+                    <button class="dl-add-btn" onclick="dlAddRow('subWorkers')">הוסף קבלן משנה</button>
                 </div>
                 <!-- Equipment -->
                 <div class="dl-section">
@@ -395,7 +395,7 @@ window._showLoginWhenSplashDone = false;
                         </tr></thead>
                         <tbody id="dlEquipmentTbody"></tbody>
                     </table>
-                    <button class="dl-add-btn" onclick="dlAddRow('equipment')">+ הוסף ציוד</button>
+                    <button class="dl-add-btn" onclick="dlAddRow('equipment')">הוסף ציוד</button>
                 </div>
                 <!-- Notes -->
                 <div class="fg" style="margin-bottom:14px;">
@@ -466,7 +466,7 @@ window._showLoginWhenSplashDone = false;
                             <tbody id="wiRowsTbody"></tbody>
                         </table>
                     </div>
-                    <button class="dl-add-btn" onclick="weldAddRow()">+ הוסף שורת ריתוך חדשה</button>
+                    <button class="dl-add-btn" onclick="weldAddRow()">הוסף שורת ריתוך חדשה</button>
                 </div>
 
                 <div class="fg" style="margin-top:16px;margin-bottom:18px;">
@@ -585,21 +585,21 @@ window._showLoginWhenSplashDone = false;
                 <div class="task-bulk-bar hidden" id="tplTaskBulkBar" style="margin-top:6px;">
                     <span id="tplTaskBulkBarLabel">0 משימות נבחרו</span>
                     <div class="task-bulk-bar-actions">
-                        <button class="task-bulk-bar-dup" onclick="duplicateSelectedTplTasks()">⧉ שכפל נבחרים</button>
+                        <button class="task-bulk-bar-dup" onclick="duplicateSelectedTplTasks()">שכפל נבחרים</button>
                         <button class="task-bulk-bar-clear" onclick="clearTplTaskSelection()">נקה בחירה</button>
                     </div>
                 </div>
                 <div id="tplTaskList" style="margin-top:6px;"></div>
                 <div class="task-add-row" style="margin-top:8px;">
                     <div class="add-task-split">
-                        <span class="add-task-btn-label">+ הוסף משימה ▾</span>
+                        <span class="add-task-btn-label">הוסף משימה</span>
                         <select class="add-task-type-select" onchange="handleAddTplTaskType(this)">
-                            <option value="">+ הוסף משימה</option>
+                            <option value="" hidden>הוסף משימה</option>
                             <option value="task">משימה רגילה (תקין / לא תקין)</option>
                             <option value="range">משימת ערך (מדד מספרי)</option>
                         </select>
                     </div>
-                    <button class="btn-add-section" onclick="addTplSection()">+ קטגוריה</button>
+                    <button class="btn-add-section" onclick="addTplSection()">קטגוריה</button>
                 </div>
             </div>
 
@@ -610,7 +610,7 @@ window._showLoginWhenSplashDone = false;
                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt"
                        onchange="handleTplAppendixFile(event)">
                 <button class="btn-add-appendix" style="margin-top:8px;" onclick="document.getElementById('tplAppendixFileInput').click()">
-                    + צרף קובץ נספח
+                    צרף קובץ נספח
                 </button>
             </div>
 
@@ -1022,7 +1022,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.5.22"></script>
-<script type="module" src="Js/app.js?v=1.5.22"></script>
+<script type="module" src="Js/api.js?v=1.5.23"></script>
+<script type="module" src="Js/app.js?v=1.5.23"></script>
 </body>
 </html>

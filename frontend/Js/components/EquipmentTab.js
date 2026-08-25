@@ -76,7 +76,7 @@ export function renderEquipmentTab() {
     if (!totalItems) {
         html += `
             <div class="eq-empty">
-                <p>אין פריטי ציוד במערכת.<br>לחץ <strong>+ הוסף</strong> להוספה.</p>
+                <p>אין פריטי ציוד במערכת.<br>לחץ <strong>"הוסף ציוד"</strong> להוספה.</p>
             </div>`;
     } else {
         const orderedCats = _EQUIP_CATEGORIES.filter(c => byCategory[c]);

@@ -233,7 +233,7 @@ function _renderDashboard() {
     let html = `
         <div class="dash-header">
             <h2 class="dash-title">תיקיות</h2>
-            ${isAdmin() ? `<button class="dash-new-folder-btn" onclick="showModal('createFolderModal')">+ תיקייה חדשה</button>` : ''}
+            ${isAdmin() ? `<button class="dash-new-folder-btn" onclick="showModal('createFolderModal')">תיקייה חדשה</button>` : ''}
         </div>`;
 
     if (folderNames.length) {
@@ -259,7 +259,7 @@ function _renderDashboard() {
         html += `
             <div class="dash-empty">
                 <h2>אין דוחות עדיין</h2>
-                <p>לחץ <strong>"+ דוח חדש"</strong> כדי להתחיל</p>
+                <p>לחץ <strong>"דוח חדש"</strong> כדי להתחיל</p>
             </div>`;
     }
 
@@ -348,7 +348,7 @@ export async function showFolderContent(folderName) {
                     <div class="site-tpl-meta">${t.tasks?.length || 0} משימות</div>
                 </div>
                 <div class="card-actions-desktop" style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-                    <button class="site-tpl-btn" onclick="createReportFromTemplate('${safeId}','${safeFolderName}')">+ דוח</button>
+                    <button class="site-tpl-btn" onclick="createReportFromTemplate('${safeId}','${safeFolderName}')">דוח</button>
                     ${canEditTpl ? `
                     <button class="site-tpl-btn" onclick="showTemplateEditor('${safeId}','${safeFolderName}')">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -366,7 +366,7 @@ export async function showFolderContent(folderName) {
                 <div class="mobile-dots-wrap">
                     <select class="mobile-dots-select" onchange="handleTplSelect(this,'${safeId}','${safeFolderName}')">
                         <option value="">⋮</option>
-                        <option value="newReport">+ דוח</option>
+                        <option value="newReport">דוח</option>
                         ${canEditTpl ? `
                         <option value="edit">עריכה</option>
                         <option value="move">העבר</option>
@@ -379,14 +379,14 @@ export async function showFolderContent(folderName) {
 
     const newTplBtn = canEditTpl ? `
         <div style="display:flex;gap:8px;margin-bottom:16px;">
-            <button class="dash-new-folder-btn" style="flex:1" onclick="showTemplateEditor(null,'${safeFolderName}')">+ תבנית חדשה</button>
+            <button class="dash-new-folder-btn" style="flex:1" onclick="showTemplateEditor(null,'${safeFolderName}')">תבנית חדשה</button>
             <button class="dash-new-folder-btn" style="white-space:nowrap;padding:7px 16px;" onclick="importAsTemplate('${safeFolderName}')">ייבוא</button>
         </div>` : '';
 
     let templatesHtml = newTplBtn;
     if (!folderTpls.length) {
         templatesHtml += canEditTpl
-            ? `<div class="dash-empty"><p>אין תבניות עדיין. לחץ "+ תבנית חדשה" ליצירה.</p></div>`
+            ? `<div class="dash-empty"><p>אין תבניות עדיין. לחץ "תבנית חדשה" ליצירה.</p></div>`
             : `<div class="dash-empty"><p>אין תבניות בתיקייה זו.</p></div>`;
     } else {
         templatesHtml += `<div class="site-tpl-list">${folderTpls.map(_tplCard).join('')}</div>`;
@@ -451,7 +451,7 @@ function _buildProceduresPanel(folderName) {
 
     let html = `
         <button class="dash-new-folder-btn" style="margin-bottom:16px" onclick="uploadProcedure('${safeName}')">
-            + הוסף נוהל
+            הוסף נוהל
         </button>`;
 
     if (!procs.length) {
@@ -832,7 +832,7 @@ export function renderSidebar() {
     }
 
     if (!Object.keys(S.folders).length && !unfiled.length) {
-        c.innerHTML = '<div style="padding:18px 10px;font-size:12px;color:#3d506b;text-align:center;line-height:1.7;">עדיין אין דוחות.<br>לחץ <strong style="color:#60a5fa;">"+ דוח חדש"</strong> להתחלה.</div>';
+        c.innerHTML = '<div style="padding:18px 10px;font-size:12px;color:#3d506b;text-align:center;line-height:1.7;">עדיין אין דוחות.<br>לחץ <strong style="color:#60a5fa;">"דוח חדש"</strong> להתחלה.</div>';
     }
 }
 
