@@ -1,4 +1,4 @@
-import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates } from './api.js';
+import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus } from './api.js';
 import { renumberTplTasks } from './components/taskComponent.js';
 import { buildLogBoard }     from './components/folderBoard.js';
 
@@ -86,12 +86,9 @@ function _buildReportCards(reports, showActions = false) {
     const statusLabel = { pending: 'ממתין', in_progress: 'בתהליך', completed: 'הושלם' };
     const statusClass = { pending: 'dash-status-pending', in_progress: 'dash-status-progress', completed: 'dash-status-done' };
     return reports.map(r => {
+        const status = computeReportStatus(r);
         const tasks  = (r.tasks || []).filter(t => t.type !== 'section');
-        const done   = tasks.filter(t => t.status === 'performed' || t.status === 'in_range').length;
-        const status = tasks.length === 0    ? 'pending'
-                     : done === tasks.length ? 'completed'
-                     : done > 0              ? 'in_progress'
-                     :                         'pending';
+        const done   = tasks.filter(t => t.status && t.status !== 'pending').length;
         const safeId    = esc(r.id);
         const safeTitle = esc(r.title || 'ללא שם');
         const actionsHtml = showActions ? `

@@ -128,6 +128,42 @@ export function canEditReport(r) {
 }
 
 /* ================================================================
+   REPORT STATUS
+   Single source of truth for the pending/in_progress/completed badge
+   shown across the home dashboard, folder history cards, and saved to
+   Firestore — previously three separate, drifted reimplementations of
+   this same calculation lived in api.js/ui.js/HomeTab.js, disagreeing
+   both on reports with no checklist and on which task outcomes count
+   as "handled". Use this everywhere instead of recomputing locally.
+================================================================ */
+/** Returns 'pending' | 'in_progress' | 'completed' for a report.
+ *  A task counts as "handled" the moment it has ANY recorded outcome —
+ *  OK, not-OK, flagged for review, or a range reading — not just the
+ *  positive ones; a report where every item was inspected and marked
+ *  "not OK" is just as complete as one where everything passed.
+ *  A report with no checklist at all (fault/other/daily-log style,
+ *  free-text only) is always 'completed' — there's no per-item
+ *  progress to track, and no separate "mark as done" control exists. */
+export function computeReportStatus(report) {
+    if (report.serviceType === 'weld_inspection') {
+        const rows     = report.weldInspection?.rows || [];
+        const answered = rows.filter(row =>
+            row.fitUp && row.welderStamp && row.visualRoot && row.visualHot && row.visualFillCap
+        ).length;
+        if (rows.length === 0)          return 'completed';
+        if (answered === rows.length)   return 'completed';
+        if (answered > 0)               return 'in_progress';
+        return 'pending';
+    }
+    const tasks    = (report.tasks || []).filter(t => t.type !== 'section');
+    const answered = tasks.filter(t => t.status && t.status !== 'pending').length;
+    if (tasks.length === 0)          return 'completed';
+    if (answered === tasks.length)   return 'completed';
+    if (answered > 0)                return 'in_progress';
+    return 'pending';
+}
+
+/* ================================================================
    FIRESTORE HELPERS
 ================================================================ */
 /** Firestore rejects `undefined`. Recursively drop undefined keys
@@ -495,33 +531,12 @@ export async function apiSaveReport(report) {
     if (report.tech) report.tech.sig = techSig;
     report.customerSig = custSig;
 
-    // 2. Derive denormalised status fields for cheap dashboard queries.
-    // "answered" = any status that isn't the default 'pending' (ok, not-ok, under-review, etc.)
-    // 0 tasks → completed immediately (fault/extra/other reports with no checklist)
-    let status;
-    if (report.serviceType === 'weld_inspection') {
-        const wRows    = (report.weldInspection?.rows || []);
-        const wAnswered = wRows.filter(row =>
-            row.fitUp && row.welderStamp && row.visualRoot && row.visualHot && row.visualFillCap
-        ).length;
-        status = wRows.length === 0          ? 'completed'
-               : wAnswered === wRows.length  ? 'completed'
-               : wAnswered > 0               ? 'in_progress'
-               :                              'pending';
-    } else {
-        const tasks    = (report.tasks || []).filter(t => t.type !== 'section');
-        const answered = tasks.filter(t => t.status && t.status !== 'pending').length;
-        status = tasks.length === 0        ? 'completed'
-               : answered === tasks.length ? 'completed'
-               : answered > 0             ? 'in_progress'
-               :                           'pending';
-    }
-
+    // 2. Derive a denormalised status field for cheap dashboard queries.
     const reportPayload = _sanitize({
         technician_name:  report.tech?.name || '',
         customer_name:    report.customer   || '',
         work_description: report.title      || '',
-        status,
+        status: computeReportStatus(report),
         report_data: report,
         updatedAt: new Date().toISOString()
     });

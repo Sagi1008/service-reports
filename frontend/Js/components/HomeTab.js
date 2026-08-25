@@ -1,4 +1,4 @@
-import { S, esc, fmtDate } from '../api.js';
+import { S, esc, fmtDate, computeReportStatus } from '../api.js';
 import { renderRecentLogsInto } from './ManagerPanel.js';
 
 const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com'];
@@ -6,13 +6,6 @@ const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com'];
 /* ================================================================
    HOME DASHBOARD
 ================================================================ */
-function _reportStatus(r) {
-    const tasks = (r.tasks || []).filter(t => t.type !== 'section');
-    const done  = tasks.filter(t => t.status === 'performed').length;
-    if (!tasks.length || done === 0) return 'pending';
-    if (done === tasks.length)       return 'completed';
-    return 'in_progress';
-}
 
 export function renderHomeDashboard() {
     const isMobile = window.innerWidth <= 768;
@@ -31,7 +24,7 @@ export function renderHomeDashboard() {
     const monthStr     = new Date().toISOString().slice(0, 7);
     const monthReports = allReports.filter(r => (r.createdAt || '').startsWith(monthStr));
     const thisMonth    = monthReports.length;
-    const active       = allReports.filter(r => { const s = _reportStatus(r); return s === 'pending' || s === 'in_progress'; }).length;
+    const active       = allReports.filter(r => { const s = computeReportStatus(r); return s === 'pending' || s === 'in_progress'; }).length;
     const validFolders = new Set(Object.keys(S.folders));
     const procTotal    = Object.entries(S.procedures)
         .filter(([key]) => validFolders.has(key))
