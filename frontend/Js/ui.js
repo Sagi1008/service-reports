@@ -187,17 +187,64 @@ function _buildFolderCards(folderNames) {
     }).join('');
 }
 
-/** Service-type breakdown bar + legend for a folder's reports (all of
- *  them, no time window — unlike the home dashboard's month-scoped
- *  version). Same visual language (hd-* classes) as HomeTab.js. */
+/** Hex pairs (light/base) per SERVICE_TYPES color key, for the ring
+ *  chart's per-segment gradients. Kept separate from the hd-bar-*
+ *  classes (still used by the home dashboard's straight bar) since
+ *  gradients need actual color values, not CSS classes. */
+const _RING_HEX = {
+    blue:  ['#7db4ff', '#3b82f6'],
+    red:   ['#ff8a80', '#ef4444'],
+    amber: ['#ffc35c', '#f59e0b'],
+    slate: ['#94a3b8', '#64748b'],
+};
+
+/** Service-type breakdown as a segmented ring chart, for a folder's
+ *  reports (all of them, no time window). Replaces the straight
+ *  segmented bar previously used here — the home dashboard's monthly
+ *  chart still uses the bar. */
 function _buildServiceTypeChart(reports) {
     const typeCounts = countByServiceType(reports);
+    const total = reports.length;
+    const active = SERVICE_TYPES.filter(t => typeCounts[t.val] > 0);
+
+    const r = 70, sw = 16;
+    const C = 2 * Math.PI * r;
+    const gap = active.length > 1 ? 6 : 0;
+
+    let cumulative = 0;
+    const segments = active.map(t => {
+        const full    = (typeCounts[t.val] / total) * C;
+        const visible = Math.max(0, full - gap);
+        const offset  = -cumulative;
+        cumulative += full;
+        const [light, base] = _RING_HEX[t.color];
+        return `<linearGradient id="ring-g-${t.val}" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="${light}"/><stop offset="1" stop-color="${base}"/>
+            </linearGradient>`
+            + `<circle cx="90" cy="90" r="${r}" fill="none" stroke="url(#ring-g-${t.val})"
+                stroke-width="${sw}" stroke-linecap="round"
+                stroke-dasharray="${visible.toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>`;
+    }).join('');
+
     return `
-        <div class="hd-chart-wrap" style="margin-bottom:20px;">
-            <div class="hd-bar-track">
-                ${SERVICE_TYPES.filter(t => typeCounts[t.val] > 0).map(t =>
-                    `<div class="hd-bar-seg hd-bar-${t.color}" style="flex:${typeCounts[t.val]}"></div>`
-                ).join('')}
+        <div class="ring-chart-wrap" style="margin-bottom:20px;">
+            <div class="ring-chart-stage">
+                <svg width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="פילוח ${total} דוחות לפי סוג טיפול">
+                    <title>פילוח דוחות לפי סוג טיפול</title>
+                    <defs>
+                        <filter id="ring-shadow" x="-40%" y="-40%" width="180%" height="180%">
+                            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.4"/>
+                        </filter>
+                    </defs>
+                    <g transform="rotate(-90 90 90)" filter="url(#ring-shadow)">
+                        <circle cx="90" cy="90" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${sw}"/>
+                        ${segments}
+                    </g>
+                </svg>
+                <div class="ring-center-stat">
+                    <div class="ring-center-num">${total}</div>
+                    <div class="ring-center-lbl">סה"כ דוחות</div>
+                </div>
             </div>
             <div class="hd-legend">
                 ${SERVICE_TYPES.map(t => `

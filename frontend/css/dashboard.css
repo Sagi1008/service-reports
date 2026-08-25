@@ -595,6 +595,27 @@ a.site-tpl-card.proc-card {
 .hd-legend-count { font-size: 13px; font-weight: 800; color: var(--ink); flex-shrink: 0; }
 
 /* ================================================================
+   SERVICE TYPE RING CHART (FOLDER HISTORY)
+================================================================ */
+.ring-chart-wrap { margin-bottom: 20px; }
+.ring-chart-stage {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+.ring-center-stat {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+}
+.ring-center-num { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1; }
+.ring-center-lbl { font-size: 10.5px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+
+/* ================================================================
    HOME WELCOME PANEL (legacy fallback)
 ================================================================ */
 .home-welcome-wrap {
