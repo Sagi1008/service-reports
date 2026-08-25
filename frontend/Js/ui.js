@@ -1,4 +1,4 @@
-import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport } from './api.js';
+import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates } from './api.js';
 import { renumberTplTasks } from './components/taskComponent.js';
 import { buildLogBoard }     from './components/folderBoard.js';
 
@@ -291,6 +291,8 @@ export async function showFolderContent(folderName) {
     const safeFolderName = esc(folderName);
     const folderTpls = Object.values(S.templates).filter(t => t.folder === folderName);
 
+    const canEditTpl = canEditTemplates();
+
     function _tplCard(t) {
         const safeId = esc(t.id);
         return `
@@ -304,6 +306,7 @@ export async function showFolderContent(folderName) {
                 </div>
                 <div class="card-actions-desktop" style="display:flex;gap:6px;flex-shrink:0;align-items:center">
                     <button class="site-tpl-btn" onclick="createReportFromTemplate('${safeId}','${safeFolderName}')">+ דוח</button>
+                    ${canEditTpl ? `
                     <button class="site-tpl-btn" onclick="showTemplateEditor('${safeId}','${safeFolderName}')">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
@@ -315,30 +318,33 @@ export async function showFolderContent(folderName) {
                     </button>
                     <button class="site-tpl-btn site-tpl-btn-del" onclick="deleteTemplatePrompt('${safeId}')" title="מחק תבנית">
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    </button>
+                    </button>` : ''}
                 </div>
                 <div class="mobile-dots-wrap">
                     <select class="mobile-dots-select" onchange="handleTplSelect(this,'${safeId}','${safeFolderName}')">
                         <option value="">⋮</option>
                         <option value="newReport">+ דוח</option>
+                        ${canEditTpl ? `
                         <option value="edit">עריכה</option>
                         <option value="move">העבר</option>
                         <option value="copy">העתק</option>
-                        <option value="delete">מחק</option>
+                        <option value="delete">מחק</option>` : ''}
                     </select>
                 </div>
             </div>`;
     }
 
-    const newTplBtn = `
+    const newTplBtn = canEditTpl ? `
         <div style="display:flex;gap:8px;margin-bottom:16px;">
             <button class="dash-new-folder-btn" style="flex:1" onclick="showTemplateEditor(null,'${safeFolderName}')">+ תבנית חדשה</button>
             <button class="dash-new-folder-btn" style="white-space:nowrap;padding:7px 16px;" onclick="importAsTemplate('${safeFolderName}')">ייבוא</button>
-        </div>`;
+        </div>` : '';
 
     let templatesHtml = newTplBtn;
     if (!folderTpls.length) {
-        templatesHtml += `<div class="dash-empty"><p>אין תבניות עדיין. לחץ "+ תבנית חדשה" ליצירה.</p></div>`;
+        templatesHtml += canEditTpl
+            ? `<div class="dash-empty"><p>אין תבניות עדיין. לחץ "+ תבנית חדשה" ליצירה.</p></div>`
+            : `<div class="dash-empty"><p>אין תבניות בתיקייה זו.</p></div>`;
     } else {
         templatesHtml += `<div class="site-tpl-list">${folderTpls.map(_tplCard).join('')}</div>`;
     }
@@ -814,12 +820,13 @@ export function updateToolbar() {
     mode.innerHTML  = '';
 
     if (editable) {
+        const canTpl = canEditTemplates();
         actions.innerHTML = `
             <div class="card-actions-desktop" style="display:flex;gap:5px;align-items:center;">
                 <button class="tbtn tbtn-save"     onclick="saveReport()">שמור</button>
                 <button class="tbtn tbtn-pdf"      onclick="downloadPDF()">PDF</button>
                 <button class="tbtn tbtn-share"    onclick="showShareModal()">שתף</button>
-                <button class="tbtn tbtn-template" onclick="showSaveAsTemplate()">שמור כתבנית</button>
+                ${canTpl ? `<button class="tbtn tbtn-template" onclick="showSaveAsTemplate()">שמור כתבנית</button>` : ''}
                 <button class="tbtn tbtn-folder"   onclick="showMoveFolderModal()">תיקייה</button>
                 <button class="tbtn tbtn-clear"    onclick="clearReport()">נקה</button>
                 <button class="tbtn tbtn-delete"   onclick="deleteReportPrompt()">✕ מחק</button>
@@ -830,7 +837,7 @@ export function updateToolbar() {
                     <option value="save">שמור</option>
                     <option value="pdf">PDF</option>
                     <option value="share">שתף</option>
-                    <option value="template">שמור כתבנית</option>
+                    ${canTpl ? `<option value="template">שמור כתבנית</option>` : ''}
                     <option value="folder">תיקייה</option>
                     <option value="clear">נקה</option>
                     <option value="delete">✕ מחק</option>

@@ -1,4 +1,4 @@
-import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, apiSaveDraftFields, apiClearDraftFields } from './api.js';
+import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, canEditTemplates, apiSaveDraftFields, apiClearDraftFields } from './api.js';
 import {
     showModal, hideModal, toast,
     setReportMode, renderTasks, renderImages, renderReportAppendices,
@@ -786,6 +786,7 @@ export function deleteReportById(id) {
    TEMPLATES
 ================================================================ */
 export function showTemplateEditor(id, folderName = null) {
+    if (!canEditTemplates()) { toast('אין הרשאה לערוך תבניות', 'error'); return; }
     const tpl = id ? S.templates[id] : null;
     document.getElementById('tplEditorId').value          = id || '';
     document.getElementById('tplEditorFolder').value      = tpl ? (tpl.folder || '') : (folderName || '');
@@ -821,6 +822,7 @@ export function showTemplateEditor(id, folderName = null) {
 }
 
 export function saveTplEditor() {
+    if (!canEditTemplates()) { toast('אין הרשאה לערוך תבניות', 'error'); return; }
     const name = document.getElementById('tplName').value.trim();
     if (!name) { toast('אנא הכנס שם לתבנית', 'error'); return; }
 
@@ -866,6 +868,7 @@ export function saveTplEditor() {
 }
 
 export function deleteTemplatePrompt(id) {
+    if (!canEditTemplates()) { toast('אין הרשאה למחוק תבניות', 'error'); return; }
     if (confirm(`למחוק את התבנית "${S.templates[id]?.name}"?`)) {
         delete S.templates[id];
         persist();
@@ -932,7 +935,7 @@ export function showSaveAsTemplate() {
 export async function confirmSaveAsTemplate() {
     const name = document.getElementById('saveTplName').value.trim();
     if (!name) { toast('אנא הכנס שם', 'error'); return; }
-    if (!isAdmin()) { toast('רק מנהל מערכת יכול לשמור תבניות', 'error'); return; }
+    if (!canEditTemplates()) { toast('אין הרשאה לשמור תבניות', 'error'); return; }
 
     await saveReport();
     if (!S.currentId) { toast('שגיאה בשמירת הדוח', 'error'); return; }
@@ -1219,6 +1222,7 @@ export async function confirmImport() {
     const tasks  = S.importParsed.tasks;
 
     if (asWhat === 'template') {
+        if (!canEditTemplates()) { toast('אין הרשאה לערוך תבניות', 'error'); return; }
         const id = uid();
         S.templates[id] = {
             id, name, folder: S.currentFolder || null, permComments: '',
@@ -1333,6 +1337,7 @@ function _moveAsset(type, id, toFolder) {
         if (S.currentFolder) showFolderContent(S.currentFolder); else showDashboard();
         toast(`הדוח הועבר לתיקייה "${toFolder}"`, 'success');
     } else if (type === 'template') {
+        if (!canEditTemplates()) { toast('אין הרשאה לערוך תבניות', 'error'); return; }
         if (!S.templates[id]) return;
         S.templates[id].folder = toFolder;
         persist();
@@ -1363,6 +1368,7 @@ async function _copyAsset(type, id, toFolder) {
             toast('הדוח הועתק אך לא נשמר בשרת – נסה לשמור שוב', 'error');
         }
     } else if (type === 'template') {
+        if (!canEditTemplates()) { toast('אין הרשאה לערוך תבניות', 'error'); return; }
         const orig = S.templates[id];
         if (!orig) return;
         const newId = uid();
@@ -1379,6 +1385,7 @@ async function _copyAsset(type, id, toFolder) {
    IMPORT AS TEMPLATE
 ================================================================ */
 export function importAsTemplate(folderName) {
+    if (!canEditTemplates()) { toast('אין הרשאה לערוך תבניות', 'error'); return; }
     const input = document.createElement('input');
     input.type   = 'file';
     input.accept = '.xlsx,.xls,.docx,.doc';

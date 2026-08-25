@@ -39,9 +39,23 @@ service cloud.firestore {
     // persist() overwrites this single document wholesale for every
     // technician action that touches folders or templates (not just
     // admin actions), so it cannot be locked to admin-only writes
-    // without breaking normal report/template workflows.
+    // without breaking normal report/template workflows. Templates
+    // specifically are further restricted: a write may only change the
+    // `templates` field if the requester is the admin or has been
+    // granted canEditTemplates in their team_directory record — folders
+    // and taskCounter remain editable by any signed-in user as before.
+    function canEditTemplates() {
+      return isAdmin() ||
+        (isSignedIn() &&
+         exists(/databases/$(database)/documents/team_directory/$(request.auth.token.email)) &&
+         get(/databases/$(database)/documents/team_directory/$(request.auth.token.email)).data.canEditTemplates == true);
+    }
     match /config/appstate {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() &&
+        (canEditTemplates() ||
+         !exists(/databases/$(database)/documents/config/appstate) ||
+         request.resource.data.templates == resource.data.templates);
     }
 
     // ── Site documents & procedures ────────────────────────────────

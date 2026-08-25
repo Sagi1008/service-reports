@@ -1,4 +1,4 @@
-import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest, apiCheckUserApproval, apiSubscribeUserStatus } from './api.js';
+import { S, hydrate, subscribeToChanges, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, apiSubmitRegistrationRequest, apiCheckUserApproval, apiSubscribeUserStatus, apiSubscribeTemplatePermission } from './api.js';
 import {
     initPad, setTodayDates, markUnsaved,
     showModal, hideModal, toast,
@@ -563,6 +563,7 @@ async function init() {
 let _appBooted       = false;
 let _freshChecked    = false;
 let _userStatusUnsub = null;
+let _tplPermUnsub    = null;
 
 onAuthStateChanged(auth, async (user) => {
     if (!_freshChecked) {
@@ -578,6 +579,14 @@ onAuthStateChanged(auth, async (user) => {
 
     if (user) {
         S.currentUser = user;
+        if (_tplPermUnsub) _tplPermUnsub();
+        _tplPermUnsub = apiSubscribeTemplatePermission(user.email, (allowed) => {
+            if (S.canEditTemplates === allowed) return;
+            S.canEditTemplates = allowed;
+            renderSidebar();
+            if (S.currentFolder) showFolderContent(S.currentFolder);
+            updateToolbar();
+        });
         document.getElementById('userEmail').textContent = user.email;
         const mua = document.getElementById('mobileUserAvatar');
         if (mua) mua.textContent = (user.email?.[0] || '?').toUpperCase();
@@ -620,6 +629,8 @@ onAuthStateChanged(auth, async (user) => {
         if (!_appBooted) { _appBooted = true; init(); }
     } else {
         if (_userStatusUnsub) { _userStatusUnsub(); _userStatusUnsub = null; }
+        if (_tplPermUnsub)    { _tplPermUnsub();    _tplPermUnsub    = null; }
+        S.canEditTemplates = false;
         cleanupAdminPanel();
         cleanupManagerPanel();
         if (_appBooted) {

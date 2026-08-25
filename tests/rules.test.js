@@ -21,6 +21,7 @@ const PROJECT_ID = 'oficiency-1bbf9-rules-test';
 const ADMIN_EMAIL = 'sagi.tisson@oficiency.com';
 const TECH_A = 'techa@oficiency.com';
 const TECH_B = 'techb@oficiency.com';
+const TECH_C = 'techc@oficiency.com'; // deliberately never given a team_directory record
 
 let pass = 0, fail = 0;
 async function check(label, fn) {
@@ -54,6 +55,7 @@ async function check(label, fn) {
     const admin  = testEnv.authenticatedContext('admin-uid',  { email: ADMIN_EMAIL });
     const techA  = testEnv.authenticatedContext('techa-uid',  { email: TECH_A });
     const techB  = testEnv.authenticatedContext('techb-uid',  { email: TECH_B });
+    const techC  = testEnv.authenticatedContext('techc-uid',  { email: TECH_C });
 
     // ── Seed data bypassing rules (as the real app's server-side state) ──
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
@@ -76,6 +78,7 @@ async function check(label, fn) {
     const dbA     = techA.firestore();
     const dbB     = techB.firestore();
     const dbAdmin = admin.firestore();
+    const dbC     = techC.firestore();
 
     await check('anon cannot read reports', () =>
         assertFails(getDoc(doc(dbAnon, 'reports', 'r_owned_by_a'))));
@@ -158,6 +161,30 @@ async function check(label, fn) {
         assertFails(setDoc(doc(dbB, 'team_directory', TECH_B), { name: 'Tech B', email: TECH_B })));
     await check('admin CAN write the team directory', () =>
         assertSucceeds(setDoc(doc(dbAdmin, 'team_directory', TECH_B), { name: 'Tech B', email: TECH_B })));
+
+    console.log('\n== FIRESTORE: config/appstate — template edit permission ==');
+    await check('non-permitted tech CANNOT change templates', () =>
+        assertFails(setDoc(doc(dbA, 'config', 'appstate'),
+            { folders: {}, templates: { tpl1: { name: 'x' } }, taskCounter: 0 })));
+
+    await check('non-permitted tech CAN still write appstate when templates is unchanged', () =>
+        assertSucceeds(setDoc(doc(dbA, 'config', 'appstate'),
+            { folders: { f1: [] }, templates: {}, taskCounter: 1 })));
+
+    await check('admin CAN grant canEditTemplates to a tech', () =>
+        assertSucceeds(setDoc(doc(dbAdmin, 'team_directory', TECH_A), { canEditTemplates: true }, { merge: true })));
+
+    await check('tech CAN change templates once granted permission', () =>
+        assertSucceeds(setDoc(doc(dbA, 'config', 'appstate'),
+            { folders: {}, templates: { tpl1: { name: 'x' } }, taskCounter: 1 })));
+
+    await check('tech with NO team_directory record at all CANNOT change templates', () =>
+        assertFails(setDoc(doc(dbC, 'config', 'appstate'),
+            { folders: {}, templates: { tplX: {} }, taskCounter: 1 })));
+
+    await check('admin CAN always change templates', () =>
+        assertSucceeds(setDoc(doc(dbAdmin, 'config', 'appstate'),
+            { folders: {}, templates: { tplAdmin: {} }, taskCounter: 2 })));
 
     console.log('\n== FIRESTORE: default deny ==');
     await check('unknown collection is denied even for admin', () =>

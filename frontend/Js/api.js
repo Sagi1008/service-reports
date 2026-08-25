@@ -86,6 +86,7 @@ export const S = {
     currentMode:    'report',   // 'report' | 'template'
     currentTplId:   null,
     currentUser: null,   // Firebase Auth user (set by onAuthStateChanged in app.js)
+    canEditTemplates: false, // per-user grant, kept live by apiSubscribeTemplatePermission (admin is always true — see canEditTemplates())
     pad:         null,   // technician signature pad
     customerPad: null,   // customer signature pad
     taskCounter: 0,
@@ -103,6 +104,15 @@ export const ADMIN_EMAIL_SINGLE = 'sagi.tisson@oficiency.com';
 /** Returns true if the currently logged-in user is the system administrator. */
 export function isAdmin() {
     return (S.currentUser?.email || '').toLowerCase().trim() === ADMIN_EMAIL_SINGLE;
+}
+
+/** Returns true if the current user may create/edit/delete templates.
+ *  Admins always can; everyone else needs an explicit grant (team_directory
+ *  canEditTemplates field), set by the admin in ManagerPanel. This is
+ *  unrelated to canEditReport() — editing tasks inside an already-open
+ *  report is a separate permission from editing the shared templates. */
+export function canEditTemplates() {
+    return isAdmin() || S.canEditTemplates === true;
 }
 
 /** Returns true if the current user may edit report r.
@@ -766,15 +776,32 @@ export async function apiGetApprovedUsers() {
     const users = [];
     snap.forEach(d => {
         const data = d.data();
-        if (data.name && data.email) users.push({ id: d.id, name: data.name, email: data.email });
+        if (data.name && data.email) users.push({ id: d.id, name: data.name, email: data.email, canEditTemplates: data.canEditTemplates === true });
     });
     return users.sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
 /** Upserts a {name, email} entry into the public team directory. Admin-only
- *  write per firestore.rules. Email is used as the document id. */
+ *  write per firestore.rules. Email is used as the document id. Merges
+ *  rather than overwrites, so it never clobbers an already-granted
+ *  canEditTemplates flag on a re-sync/backfill. */
 async function apiSyncTeamDirectory(name, email) {
-    await setDoc(doc(db, 'team_directory', email), _sanitize({ name, email, updatedAt: new Date().toISOString() }));
+    await setDoc(doc(db, 'team_directory', email), _sanitize({ name, email, updatedAt: new Date().toISOString() }), { merge: true });
+}
+
+/** Grants or revokes template-editing permission for a technician.
+ *  Admin-only write per firestore.rules. */
+export async function apiSetTemplatePermission(email, allowed) {
+    await setDoc(doc(db, 'team_directory', email), { canEditTemplates: !!allowed }, { merge: true });
+}
+
+/** Subscribes to the current user's own template-editing permission.
+ *  Calls cb(true|false) on every change. Returns an unsubscribe function. */
+export function apiSubscribeTemplatePermission(email, cb) {
+    return onSnapshot(doc(db, 'team_directory', email),
+        (snap) => cb(snap.exists() && snap.data().canEditTemplates === true),
+        (err) => { console.warn('[TEMPLATE PERM] subscribe failed:', err.message); cb(false); }
+    );
 }
 
 /** Removes a user from the public team directory (called on access revoke). */

@@ -1,4 +1,4 @@
-import { apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration, apiGetApprovedUsers, apiRevokeUserAccess, apiSubscribeRecentHandoverLogs, apiBackfillTeamDirectory } from '../api.js';
+import { apiSubscribePendingRegistrations, apiApproveRegistration, apiRejectRegistration, apiGetApprovedUsers, apiRevokeUserAccess, apiSubscribeRecentHandoverLogs, apiBackfillTeamDirectory, apiSetTemplatePermission } from '../api.js';
 import { toast } from '../ui.js';
 
 /* ================================================================
@@ -77,6 +77,10 @@ function _renderTeam() {
                         <div class="mgr-user-name">${_esc(u.name)}</div>
                         <div class="mgr-user-email">${_esc(u.email)}</div>
                     </div>
+                    <label class="mgr-tpl-perm" title="הרשאה לעריכת תבניות דו&quot;ח" style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;">
+                        <input type="checkbox" ${u.canEditTemplates ? 'checked' : ''} onchange="mgrToggleTemplatePermission('${_esc(u.email)}', this.checked, this)">
+                        עריכת תבניות
+                    </label>
                     <button class="mgr-btn mgr-btn-revoke" onclick="mgrRevoke('${_esc(u.id)}','${_esc(u.name)}')">בטל גישה</button>
                 </div>`).join('');
         }
@@ -254,6 +258,22 @@ window.mgrRevoke = async function(docId, name) {
         document.querySelectorAll(`[data-mgrteam="${docId}"]`).forEach(row => {
             row.querySelectorAll('button').forEach(b => { b.disabled = false; });
         });
+    }
+};
+
+window.mgrToggleTemplatePermission = async function(email, allowed, checkboxEl) {
+    checkboxEl.disabled = true;
+    try {
+        await apiSetTemplatePermission(email, allowed);
+        const u = _mgrTeam.find(t => t.email === email);
+        if (u) u.canEditTemplates = allowed;
+        toast(allowed ? `${email} יכול כעת לערוך תבניות` : `הוסרה הרשאת עריכת תבניות מ-${email}`, 'success');
+    } catch (e) {
+        console.error('[MGR TPL PERM]', e);
+        toast('שגיאה בעדכון ההרשאה', 'error');
+        checkboxEl.checked = !allowed;
+    } finally {
+        checkboxEl.disabled = false;
     }
 };
 
