@@ -8,7 +8,7 @@ import {
     addTplTask, addTplSection, addTplRangeTask, renumberTplTasks,
     handleImages, handleTplAppendixFile,
     clearSignature, clearCustomerSignature, toggleMobileSidebar, closeMobileSidebar,
-    toggleFolder, updateToolbar, showDashboard, showFolderContent, switchFolderTab,
+    toggleFolder, updateToolbar, showDashboard, loadMoreDashboardReports, showFolderContent, switchFolderTab,
     toggleFolderMenu, closeFolderMenu,
     openImportAssociationModal, deleteAttachment,
     uploadProcedure, deleteProcedure,
@@ -151,6 +151,7 @@ window.closeMobileSidebar     = closeMobileSidebar;
 
 // Dashboard / folder views
 window.showDashboard              = showDashboard;
+window.loadMoreDashboardReports   = loadMoreDashboardReports;
 window.showFolderContent          = showFolderContent;
 window.switchFolderTab            = switchFolderTab;
 window.toggleFolderMenu           = toggleFolderMenu;

@@ -185,7 +185,19 @@ function _buildFolderCards(folderNames) {
     }).join('');
 }
 
+let _dashVisibleCount = 30;
+
 export function showDashboard() {
+    _dashVisibleCount = 30;
+    _renderDashboard();
+}
+
+export function loadMoreDashboardReports() {
+    _dashVisibleCount += 30;
+    _renderDashboard();
+}
+
+function _renderDashboard() {
     S.currentFolder = null;
     _showContentView();
     const container  = document.getElementById('dashboardView');
@@ -206,12 +218,18 @@ export function showDashboard() {
     }
 
     if (reports.length) {
+        const shown     = Math.min(_dashVisibleCount, reports.length);
+        const remaining = reports.length - shown;
         html += `
             <div class="dash-header" style="margin-top:28px;">
                 <h2 class="dash-title">דוחות אחרונים</h2>
-                <span class="dash-count">${reports.length} סה"כ</span>
+                <span class="dash-count">${remaining > 0 ? `מוצגים ${shown} מתוך ${reports.length}` : `${reports.length} סה"כ`}</span>
             </div>
-            <div class="dash-grid">${_buildReportCards(reports.slice(0, 30))}</div>`;
+            <div class="dash-grid">${_buildReportCards(reports.slice(0, _dashVisibleCount))}</div>
+            ${remaining > 0 ? `
+            <div style="display:flex;justify-content:center;margin-top:16px;">
+                <button class="dash-new-folder-btn" onclick="loadMoreDashboardReports()">טען עוד (${remaining} נותרו)</button>
+            </div>` : ''}`;
     } else {
         html += `
             <div class="dash-empty">
