@@ -1,4 +1,4 @@
-import { S, esc, fmtDate, computeReportStatus } from '../api.js';
+import { S, esc, fmtDate } from '../api.js';
 import { renderRecentLogsInto } from './ManagerPanel.js';
 
 const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com'];
@@ -24,11 +24,6 @@ export function renderHomeDashboard() {
     const monthStr     = new Date().toISOString().slice(0, 7);
     const monthReports = allReports.filter(r => (r.createdAt || '').startsWith(monthStr));
     const thisMonth    = monthReports.length;
-    const active       = allReports.filter(r => { const s = computeReportStatus(r); return s === 'pending' || s === 'in_progress'; }).length;
-    const validFolders = new Set(Object.keys(S.folders));
-    const procTotal    = Object.entries(S.procedures)
-        .filter(([key]) => validFolders.has(key))
-        .reduce((n, [, arr]) => n + arr.length, 0);
 
     const SERVICE_TYPES = [
         { val: 'routine', label: 'ביקור תקופתי', color: 'blue'  },
@@ -79,17 +74,6 @@ export function renderHomeDashboard() {
                             <span class="hd-legend-label">${t.label}</span>
                             <span class="hd-legend-count">${typeCounts[t.val]}</span>
                         </div>`).join('')}
-                </div>
-            </div>
-
-            <div class="hd-kpi-grid">
-                <div class="hd-kpi-card hd-kpi-amber">
-                    <div class="hd-kpi-value">${active}</div>
-                    <div class="hd-kpi-label">דו״חות בטיפול</div>
-                </div>
-                <div class="hd-kpi-card hd-kpi-green">
-                    <div class="hd-kpi-value">${procTotal}</div>
-                    <div class="hd-kpi-label">נהלים במערכת</div>
                 </div>
             </div>
 
