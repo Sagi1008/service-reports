@@ -203,27 +203,27 @@
 .toast {
     position: fixed;
     top: 50%; left: 50%;
-    transform: translate(-50%, -40%);
-    background: var(--surface-2);
-    border: 1.5px solid var(--border-mid);
+    transform: translate(-50%, -40%) scale(0.94);
+    background: #16233a;
+    border: 2px solid var(--border-mid);
     color: var(--ink);
-    padding: 18px 36px;
+    padding: 20px 38px;
     border-radius: 16px;
-    font-size: 17px;
-    font-weight: 700;
-    z-index: 2000;
+    font-size: 18px;
+    font-weight: 800;
+    z-index: 5000;
     opacity: 0;
     transition: opacity .22s cubic-bezier(0.4,0,0.2,1), transform .22s cubic-bezier(0.4,0,0.2,1);
-    box-shadow: 0 8px 40px rgba(0,0,0,0.38), var(--shadow-lg);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.55), var(--shadow-lg);
     pointer-events: none;
     letter-spacing: 0.2px;
-    backdrop-filter: blur(16px);
     text-align: center;
     min-width: 240px;
+    max-width: min(420px, calc(100vw - 40px));
 }
-.toast.show { opacity: 1; transform: translate(-50%, -50%); }
-.toast.success { background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.55); color: #34d399; }
-.toast.error   { background: rgba(248,113,113,0.18); border-color: rgba(248,113,113,0.55); color: #f87171; }
+.toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.toast.success { background: #0e2f22; border-color: #22c55e; color: #4ade80; }
+.toast.error   { background: #3a1414; border-color: #f87171; color: #fca5a5; }
 
 /* ================================================================
    LOADING OVERLAY
