@@ -301,6 +301,62 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
 }
 .task-del-btn:hover { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
 
+.task-dup-btn {
+    padding: 5px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--muted-light);
+    flex-shrink: 0;
+    font-size: 13px;
+    transition: all .15s;
+    min-height: 32px;
+}
+.task-dup-btn:hover { background: var(--brand-ring); border-color: var(--brand); color: var(--brand); }
+
+.task-select-cb, .tpl-task-select-cb {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: 9px;
+    accent-color: var(--brand);
+    cursor: pointer;
+}
+
+.task-bulk-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--brand-ring);
+    border: 1.5px solid var(--brand);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink);
+}
+.task-bulk-bar-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.task-bulk-bar-dup {
+    padding: 6px 14px;
+    border-radius: var(--radius-xs);
+    border: 1.5px solid var(--brand);
+    background: var(--brand);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+.task-bulk-bar-clear {
+    padding: 6px 12px;
+    border-radius: var(--radius-xs);
+    border: 1.5px solid var(--border-mid);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
 .task-comment {
     width: 100%;
     margin-top: 6px;
@@ -468,6 +524,15 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
     min-height: 34px;
 }
 .tpl-task-del:hover { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
+.tpl-task-dup {
+    padding: 6px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent; color: var(--muted-light);
+    font-size: 13px; transition: all .15s;
+    min-height: 34px;
+}
+.tpl-task-dup:hover { background: var(--brand-ring); border-color: var(--brand); color: var(--brand); }
 
 /* ================================================================
    DRAG & DROP (SortableJS)
@@ -914,6 +979,7 @@ textarea { resize: vertical; min-height: 80px; line-height: 1.75; }
 
     .task-row    { flex-wrap: wrap; }
     .status-btns { order: 3; width: 100%; justify-content: flex-start; }
+    .task-dup-btn { order: 2; }
     .task-del-btn { order: 2; }
 
     .sig-wrap canvas { height: 110px !important; }

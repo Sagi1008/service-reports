@@ -13,13 +13,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/variables.css?v=1.5.21">
-    <link rel="stylesheet" href="css/global.css?v=1.5.21">
-    <link rel="stylesheet" href="css/auth.css?v=1.5.21">
-    <link rel="stylesheet" href="css/layout.css?v=1.5.21">
-    <link rel="stylesheet" href="css/components.css?v=1.5.21">
-    <link rel="stylesheet" href="css/reports.css?v=1.5.21">
-    <link rel="stylesheet" href="css/dashboard.css?v=1.5.21">
+    <link rel="stylesheet" href="css/variables.css?v=1.5.22">
+    <link rel="stylesheet" href="css/global.css?v=1.5.22">
+    <link rel="stylesheet" href="css/auth.css?v=1.5.22">
+    <link rel="stylesheet" href="css/layout.css?v=1.5.22">
+    <link rel="stylesheet" href="css/components.css?v=1.5.22">
+    <link rel="stylesheet" href="css/reports.css?v=1.5.22">
+    <link rel="stylesheet" href="css/dashboard.css?v=1.5.22">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -289,6 +289,13 @@ window._showLoginWhenSplashDone = false;
                 <div class="card-title">
                     רשימת משימות
                     <span class="card-badge" id="taskCountBadge">0 משימות</span>
+                </div>
+                <div class="task-bulk-bar hidden" id="taskBulkBar">
+                    <span id="taskBulkBarLabel">0 משימות נבחרו</span>
+                    <div class="task-bulk-bar-actions">
+                        <button class="task-bulk-bar-dup" onclick="duplicateSelectedTasks()">⧉ שכפל נבחרים</button>
+                        <button class="task-bulk-bar-clear" onclick="clearTaskSelection()">נקה בחירה</button>
+                    </div>
                 </div>
                 <div id="tasksList"></div>
                 <div class="task-add-row">
@@ -575,6 +582,13 @@ window._showLoginWhenSplashDone = false;
 
             <div class="card" id="cardTplTasks">
                 <div class="card-title">רשימת משימות</div>
+                <div class="task-bulk-bar hidden" id="tplTaskBulkBar" style="margin-top:6px;">
+                    <span id="tplTaskBulkBarLabel">0 משימות נבחרו</span>
+                    <div class="task-bulk-bar-actions">
+                        <button class="task-bulk-bar-dup" onclick="duplicateSelectedTplTasks()">⧉ שכפל נבחרים</button>
+                        <button class="task-bulk-bar-clear" onclick="clearTplTaskSelection()">נקה בחירה</button>
+                    </div>
+                </div>
                 <div id="tplTaskList" style="margin-top:6px;"></div>
                 <div class="task-add-row" style="margin-top:8px;">
                     <div class="add-task-split">
@@ -1008,7 +1022,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.5.21"></script>
-<script type="module" src="Js/app.js?v=1.5.21"></script>
+<script type="module" src="Js/api.js?v=1.5.22"></script>
+<script type="module" src="Js/app.js?v=1.5.22"></script>
 </body>
 </html>

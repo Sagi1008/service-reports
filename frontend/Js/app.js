@@ -5,7 +5,9 @@ import {
     setStatus, removeTask, openLightbox, closeLightbox,
     removeImage, openAppendixFile,
     addTask, addRangeTask, addSectionTitle,
+    duplicateTask, updateTaskBulkBar, clearTaskSelection, duplicateSelectedTasks,
     addTplTask, addTplSection, addTplRangeTask, renumberTplTasks,
+    duplicateTplTask, updateTplTaskBulkBar, clearTplTaskSelection, duplicateSelectedTplTasks,
     handleImages, handleTplAppendixFile,
     clearSignature, clearCustomerSignature, toggleMobileSidebar, closeMobileSidebar,
     toggleFolder, updateToolbar, showDashboard, loadMoreDashboardReports, showFolderContent, switchFolderTab,
@@ -124,6 +126,14 @@ window.setStatus = function(btn, status) {
     if (S.currentId) saveDraft();
 };
 window.removeTask             = removeTask;
+window.duplicateTask          = duplicateTask;
+window.updateTaskBulkBar      = updateTaskBulkBar;
+window.clearTaskSelection     = clearTaskSelection;
+window.duplicateSelectedTasks = duplicateSelectedTasks;
+window.duplicateTplTask              = duplicateTplTask;
+window.updateTplTaskBulkBar          = updateTplTaskBulkBar;
+window.clearTplTaskSelection         = clearTplTaskSelection;
+window.duplicateSelectedTplTasks     = duplicateSelectedTplTasks;
 
 // Daily Work Log
 window.dlAddRow               = dlAddRow;

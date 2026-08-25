@@ -9,12 +9,14 @@ export {
     addTask, addRangeTask, addSectionTitle,
     taskCount, updateTaskCount,
     removeTask, setStatus,
+    duplicateTask, updateTaskBulkBar, clearTaskSelection, duplicateSelectedTasks,
     collectTasks, renderTasks,
     renderTplTasks,
     appendTplTask, appendTplSection,
     addTplTask, addTplSection,
     appendTplRangeTask, addTplRangeTask,
     tplTaskCount, renumberTplTasks,
+    duplicateTplTask, updateTplTaskBulkBar, clearTplTaskSelection, duplicateSelectedTplTasks,
 } from './components/taskComponent.js';
 
 /* ================================================================
