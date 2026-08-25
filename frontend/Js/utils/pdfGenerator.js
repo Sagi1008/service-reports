@@ -557,32 +557,56 @@ function _buildWeldInspectionLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
 
     const badge = (val) => {
         const styles = {
-            AS: 'background:#dcfce7;color:#166534;',
-            NR: 'background:#fef9c3;color:#92400e;',
-            NT: 'background:#fee2e2;color:#991b1b;',
+            ACC: 'background:#dcfce7;color:#166534;',
+            REJ: 'background:#fee2e2;color:#991b1b;',
         };
         if (!val) return '<span style="color:#94a3b8;">—</span>';
         return '<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:9.5px;font-weight:700;' + (styles[val] || '') + '">' + esc(val) + '</span>';
     };
 
-    const rows = wi.rows || [];
-    const inspRows = rows.map((row, i) =>
-        '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f8fafc') + ';">'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;font-size:10px;font-weight:700;color:#94a3b8;">' + (i + 1) + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.kp || '') + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.itemName || '') + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.weldNo || '') + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.heatNo || '') + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;font-size:10px;">' + esc(row.pipeLength || '') + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.fitUp) + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.welderStamp) + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.visualRoot) + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.visualHot) + '</td>'
-        + '<td style="border:1px solid #e2e8f0;padding:4px 5px;text-align:center;">' + badge(row.visualFillCap) + '</td>'
-        + '</tr>'
-    ).join('') || '<tr><td colspan="11" style="border:1px solid #e2e8f0;padding:10px;text-align:center;color:#94a3b8;font-size:10px;">אין שורות בדיקה</td></tr>';
+    // Each joint prints as the SAME two physical rows the source Excel uses
+    // (a joint connects two components, so material fields are per-side) —
+    // keeps the table to ~13 columns instead of 21, fitting portrait width.
+    // Background is set per-<td> (not on <tr>) and color is explicit —
+    // html2canvas visibly mis-paints rowspan cells when an alternating-row
+    // <tr> background is used instead (the second physical row's background
+    // washes out the rowspanned cell's text), confirmed while testing this.
+    const td  = (v, bg, rs) => '<td' + (rs ? ' rowspan="2"' : '') + ' style="border:1px solid #e2e8f0;background:' + bg + ';color:#1a2640;padding:4px 5px;font-size:9.5px;vertical-align:middle;">' + (v ?? '') + '</td>';
+    const tdc = (v, bg, rs) => '<td' + (rs ? ' rowspan="2"' : '') + ' style="border:1px solid #e2e8f0;background:' + bg + ';color:#1a2640;padding:4px 5px;font-size:9.5px;text-align:center;vertical-align:middle;">' + (v ?? '') + '</td>';
 
-    const thStyle = 'background:#1a2640;color:#fff;border:1px solid #1a2640;padding:5px 4px;font-size:9px;text-align:center;white-space:nowrap;';
+    const rows = wi.rows || [];
+    const inspRows = rows.map((row, i) => {
+        const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+        const top =
+            '<tr>'
+            + tdc(i + 1, bg, true)
+            + td(esc(row.drawingNo || ''), bg, true)
+            + td(esc(row.jointNo || ''), bg, true)
+            + tdc(esc(row.weldType || '—'), bg, true)
+            + td(esc(row.formA || ''), bg)
+            + td(esc(row.specA || ''), bg)
+            + td(esc(row.heatA || ''), bg)
+            + tdc(esc(row.npsSch || ''), bg, true)
+            + td(esc(row.electrodeRoot || ''), bg)
+            + td(esc(fmtDate(row.fitUpDate) || ''), bg)
+            + td(esc(fmtDate(row.weldingDate) || ''), bg)
+            + td(esc(fmtDate(row.visualDate) || ''), bg)
+            + td(esc(row.ndtType || ''), bg, true)
+            + '</tr>';
+        const bottom =
+            '<tr>'
+            + td(esc(row.formB || ''), bg)
+            + td(esc(row.specB || ''), bg)
+            + td(esc(row.heatB || ''), bg)
+            + td(esc(row.electrodeFillCap || ''), bg)
+            + tdc(badge(row.fitUpResult), bg)
+            + td(esc(row.welderStamp || ''), bg)
+            + tdc(badge(row.visualResult), bg)
+            + '</tr>';
+        return top + bottom;
+    }).join('') || '<tr><td colspan="13" style="border:1px solid #e2e8f0;padding:10px;text-align:center;color:#94a3b8;font-size:10px;">אין שורות ריתוך</td></tr>';
+
+    const thStyle = 'background:#1a2640;color:#fff;border:1px solid #1a2640;padding:5px 4px;font-size:8.5px;text-align:center;white-space:nowrap;';
 
     const validSrcs = imgSrcs.filter(Boolean);
     const imgStyle  = 'width:calc(50% - 6px);max-width:calc(50% - 6px);height:auto;border-radius:6px;border:1px solid #e2e8f0;display:block;';
@@ -594,11 +618,20 @@ function _buildWeldInspectionLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
             + '</div></div>'
         : '';
 
-    const sigBox = (sig, label, name) =>
-        '<div style="flex:1;padding:14px 16px;">'
+    const sigBox = (sig, label, name, date) =>
+        '<div style="flex:1;padding:12px 14px;">'
         + '<div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:6px;">' + label + '</div>'
-        + (sig ? '<img src="' + sig + '" style="height:52px;max-width:100%;object-fit:contain;display:block;margin-bottom:6px;">' : '<div style="height:52px;border-bottom:1px solid #cbd5e1;margin-bottom:6px;"></div>')
-        + '<div style="font-size:11.5px;font-weight:600;color:#1a2640;">' + esc(name || '') + '</div>'
+        + (sig ? '<img src="' + sig + '" style="height:44px;max-width:100%;object-fit:contain;display:block;margin-bottom:6px;">' : '<div style="height:44px;border-bottom:1px solid #cbd5e1;margin-bottom:6px;"></div>')
+        + '<div style="font-size:10.5px;font-weight:600;color:#1a2640;">' + esc(name || '') + '</div>'
+        + (date ? '<div style="font-size:9px;color:#64748b;margin-top:2px;">' + esc(date) + '</div>' : '')
+        + '</div>';
+
+    const textSigBox = (label, name, date) =>
+        '<div style="flex:1;padding:12px 14px;">'
+        + '<div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:6px;">' + label + '</div>'
+        + '<div style="height:44px;border-bottom:1px solid #cbd5e1;margin-bottom:6px;"></div>'
+        + '<div style="font-size:10.5px;font-weight:600;color:#1a2640;">' + esc(name || '') + '</div>'
+        + (date ? '<div style="font-size:9px;color:#64748b;margin-top:2px;">' + esc(date) + '</div>' : '')
         + '</div>';
 
     return `<div style="direction:ltr;font-family:'Heebo',Arial,sans-serif;background:#fff;min-height:297mm;">
@@ -607,13 +640,13 @@ function _buildWeldInspectionLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
       <div style="background:#1a2640;padding:18px 36px;display:flex;align-items:center;justify-content:space-between;">
         <div>${logoHtml}</div>
         <div style="text-align:center;">
-          <div style="color:#fff;font-size:17px;font-weight:900;letter-spacing:0.3px;">Pipeline Welding Visual Inspection Report</div>
-          <div style="color:#94a3b8;font-size:10px;margin-top:3px;">OFCY-WELD-03-03-A | בדיקת ריתוך ויזואלי</div>
+          <div style="color:#fff;font-size:17px;font-weight:900;letter-spacing:0.3px;">Daily Welding &amp; Visual Inspection Report</div>
+          <div style="color:#94a3b8;font-size:10px;margin-top:3px;">בדיקת ריתוך ויזואלי</div>
         </div>
         <div style="text-align:right;">
-          <div style="color:#fff;font-size:11px;font-weight:700;">Report No.</div>
-          <div style="color:#e2e8f0;font-size:13px;font-weight:900;">${esc(wi.reportNo || docNum)}</div>
-          <div style="color:#94a3b8;font-size:10px;margin-top:2px;">${esc(wi.date || '')}</div>
+          <div style="color:#fff;font-size:11px;font-weight:700;">No. Doc</div>
+          <div style="color:#e2e8f0;font-size:13px;font-weight:900;">${esc(wi.docNo || docNum)}</div>
+          <div style="color:#94a3b8;font-size:10px;margin-top:2px;">${esc(fmtDate(r.visitDate) || '')}</div>
         </div>
       </div>
 
@@ -624,74 +657,69 @@ function _buildWeldInspectionLayout(r, logoDataUrl, sigTech, sigCust, imgSrcs) {
         <div style="display:flex;gap:14px;margin-bottom:16px;">
           <div style="flex:1;">
             ${metaTbl(
-              metaRow('Company', wi.company) +
-              metaRow('Job', wi.job) +
-              metaRow('Area', wi.area) +
-              metaRow('Plant Location', wi.plantLocation) +
-              metaRow('QC Code', wi.qcCode) +
-              metaRow('Project Title', wi.projectTitle)
+              metaRow('Project', wi.project) +
+              metaRow('Installation / Piping Line', wi.installationLine) +
+              metaRow('Company', r.customer) +
+              metaRow('Contractor', wi.contractor) +
+              metaRow('Date', fmtDate(r.visitDate)) +
+              metaRow('Rev.', wi.rev)
             )}
           </div>
           <div style="flex:1;">
             ${metaTbl(
-              metaRow('Alignment Sheet No.', wi.alignmentSheetNo) +
-              metaRow('Thickness', wi.thickness) +
-              metaRow('Diameter', wi.diameter) +
-              metaRow('WPS No.', wi.wpsNo) +
-              metaRow('Material', wi.material) +
-              metaRow('Welding Process', wi.weldingProcess)
+              metaRow('No. Doc', wi.docNo) +
+              metaRow('WPS', wi.wps) +
+              metaRow('Welding Process', wi.weldingProcess) +
+              metaRow('Acceptance Criteria', wi.acceptanceCriteria) +
+              metaRow('Location', r.site)
             )}
           </div>
         </div>
 
         <!-- Section header -->
-        <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid #1a2640;padding-bottom:5px;margin-bottom:10px;">Weld Inspection Log</div>
+        <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid #1a2640;padding-bottom:5px;margin-bottom:10px;">Weld Log</div>
 
         <!-- Inspection table -->
         <table style="border-collapse:collapse;width:100%;table-layout:fixed;">
           <colgroup>
-            <col style="width:22px;"><col style="width:48px;"><col style="width:96px;">
-            <col style="width:64px;"><col style="width:64px;"><col style="width:58px;">
-            <col style="width:72px;"><col style="width:76px;">
-            <col style="width:70px;"><col style="width:70px;"><col>
+            <col style="width:20px;"><col style="width:64px;"><col style="width:50px;">
+            <col style="width:32px;"><col style="width:56px;"><col style="width:56px;">
+            <col style="width:52px;"><col style="width:46px;"><col style="width:56px;">
+            <col style="width:56px;"><col style="width:56px;"><col style="width:56px;"><col>
           </colgroup>
           <thead><tr>
             <th style="${thStyle}">#</th>
-            <th style="${thStyle}">K.P.</th>
-            <th style="${thStyle}">Item Name (1/2)</th>
-            <th style="${thStyle}">Weld No.</th>
+            <th style="${thStyle}">Drawing No.</th>
+            <th style="${thStyle}">Joint No.</th>
+            <th style="${thStyle}">Type</th>
+            <th style="${thStyle}">Form</th>
+            <th style="${thStyle}">Spec</th>
             <th style="${thStyle}">Heat No.</th>
-            <th style="${thStyle}">Pipe Length</th>
-            <th style="${thStyle}">Fit-up &amp; Align.</th>
-            <th style="${thStyle}">Welder STAMP</th>
-            <th style="${thStyle}">Visual Root</th>
-            <th style="${thStyle}">Visual Hot</th>
-            <th style="${thStyle}">Visual Fill &amp; Cap</th>
+            <th style="${thStyle}">Nps/Sch</th>
+            <th style="${thStyle}">Electrode</th>
+            <th style="${thStyle}">Fit-Up</th>
+            <th style="${thStyle}">Welding</th>
+            <th style="${thStyle}">Visual</th>
+            <th style="${thStyle}">NDT</th>
           </tr></thead>
           <tbody>${inspRows}</tbody>
         </table>
 
-        ${wi.remarks ? '<div style="margin-top:16px;"><div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin-bottom:8px;">Remarks / הערות</div><div style="font-size:11px;color:#1a2640;padding:8px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;white-space:pre-wrap;">' + esc(wi.remarks) + '</div></div>' : ''}
+        ${wi.note ? '<div style="margin-top:16px;"><div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin-bottom:8px;">Note / הערות</div><div style="font-size:11px;color:#1a2640;padding:8px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;white-space:pre-wrap;">' + esc(wi.note) + '</div></div>' : ''}
 
         ${imagesHtml}
 
         <!-- Signatures -->
         <div style="margin-top:24px;padding-top:14px;border-top:2px solid #1a2640;">
-          <div style="font-size:11px;font-weight:800;color:#1a2640;margin-bottom:10px;">Signatures / חתימות</div>
-          <!-- Reviewed/Witnessed By (text only) -->
-          <div style="display:flex;gap:14px;margin-bottom:12px;">
-            <div style="flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;">
-              <div style="font-size:9px;font-weight:700;color:#64748b;margin-bottom:6px;">Reviewed / Witnessed By</div>
-              <div style="height:36px;border-bottom:1px solid #cbd5e1;margin-bottom:4px;"></div>
-              <div style="font-size:11px;color:#1a2640;">${esc(wi.reviewedByName || '')}</div>
-              <div style="font-size:10px;color:#64748b;margin-top:2px;">${esc(wi.reviewedByDate || '')}</div>
-            </div>
-          </div>
-          <!-- Prepared By / Approved By (with sig pads) -->
-          <div style="display:flex;gap:0;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
-            ${sigBox(sigTech, 'Prepared By — ' + (r.tech?.name || ''), wi.approvedByDate ? '' : r.tech?.name)}
+          <div style="font-size:11px;font-weight:800;color:#1a2640;margin-bottom:10px;">Signatures / אישורים</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;">
+            ${sigBox(sigTech, 'Prepared By', r.tech?.name, r.tech?.compDate)}
             <div style="width:1px;background:#e2e8f0;flex-shrink:0;"></div>
-            ${sigBox(sigCust, 'Reviewed / Approved By', (wi.approvedByName || '') + (wi.approvedByDate ? '  ' + wi.approvedByDate : ''))}
+            ${textSigBox('Inspected By', wi.inspectedByName, wi.inspectedByDate)}
+            <div style="width:1px;background:#e2e8f0;flex-shrink:0;"></div>
+            ${textSigBox('Witnessed By', wi.witnessedByName, wi.witnessedByDate)}
+            <div style="width:1px;background:#e2e8f0;flex-shrink:0;"></div>
+            ${sigBox(sigCust, 'Review By', wi.reviewByName, wi.reviewByDate)}
           </div>
         </div>
 

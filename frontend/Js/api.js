@@ -147,9 +147,7 @@ export function canEditReport(r) {
 export function computeReportStatus(report) {
     if (report.serviceType === 'weld_inspection') {
         const rows     = report.weldInspection?.rows || [];
-        const answered = rows.filter(row =>
-            row.fitUp && row.welderStamp && row.visualRoot && row.visualHot && row.visualFillCap
-        ).length;
+        const answered = rows.filter(row => row.fitUpResult && row.visualResult).length;
         if (rows.length === 0)          return 'completed';
         if (answered === rows.length)   return 'completed';
         if (answered > 0)               return 'in_progress';

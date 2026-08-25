@@ -85,71 +85,84 @@ function _emptyDailyLog() {
 
 /* ================================================================
    WELD INSPECTION — helpers
+   Field set mirrors OFCY-GALIL-VT-002 (Daily Welding & Visual
+   Inspection Report): each joint connects two components, so the
+   material fields (form/spec/heat) are captured per side (A/B).
+   Company/Location/Date reuse the report's generic customer/site/
+   visitDate fields rather than duplicating them — every report type
+   already shows those, and folder/PDF listings key off them.
 ================================================================ */
 function _emptyWeldInspection() {
     return {
-        company: '', job: '', area: '', plantLocation: '', qcCode: '',
-        projectTitle: '', reportNo: '', date: '',
-        alignmentSheetNo: '', thickness: '', diameter: '', wpsNo: '',
-        material: '', weldingProcess: '',
+        project: '', installationLine: '', contractor: '',
+        rev: '', docNo: '', wps: '', weldingProcess: '', acceptanceCriteria: '',
         rows: [],
-        remarks: '',
-        reviewedByName: '', reviewedByDate: '',
-        approvedByName: '', approvedByDate: '',
+        note: '',
+        inspectedByName: '', inspectedByDate: '',
+        witnessedByName: '', witnessedByDate: '',
+        reviewByName: '', reviewByDate: '',
     };
 }
 
 function _weldRowHtml(data, num) {
     const inp = (val, ph) => '<input type="text" class="wi-inp" value="' + esc(val || '') + '" placeholder="' + ph + '" oninput="markUnsaved()">';
-    const bgMap = { AS: '#dcfce7', NR: '#fef9c3', NT: '#fee2e2' };
-    const fgMap = { AS: '#166534', NR: '#92400e', NT: '#991b1b' };
-    const sel = (val) => {
-        const bg = bgMap[val] || '';
-        const fg = fgMap[val] || '';
-        const style = bg ? ' style="background:' + bg + ';color:' + fg + ';"' : '';
+    const dateInp = (val) => '<input type="date" class="wi-inp" value="' + esc(val || '') + '" oninput="markUnsaved()">';
+    const resBg = { ACC: '#dcfce7', REJ: '#fee2e2' };
+    const resFg = { ACC: '#166534', REJ: '#991b1b' };
+    const resSel = (val) => {
+        const style = resBg[val] ? ' style="background:' + resBg[val] + ';color:' + resFg[val] + ';"' : '';
         return '<select class="wi-select"' + style + ' onchange="weldSelChange(this)">'
             + '<option value="">—</option>'
-            + ['AS', 'NR', 'NT'].map(o => '<option value="' + o + '"' + (val === o ? ' selected' : '') + '>' + o + '</option>').join('')
+            + ['ACC', 'REJ'].map(o => '<option value="' + o + '"' + (val === o ? ' selected' : '') + '>' + o + '</option>').join('')
             + '</select>';
     };
+    const typeSel = (val) => '<select class="wi-select" onchange="markUnsaved()">'
+        + '<option value="">—</option>'
+        + ['BW', 'FW'].map(o => '<option value="' + o + '"' + (val === o ? ' selected' : '') + '>' + o + '</option>').join('')
+        + '</select>';
     const del = '<button class="dl-del-btn" onclick="weldDelRow(this)">✕</button>';
     return '<tr>'
         + '<td class="dl-num wi-num">' + num + '</td>'
-        + '<td>' + inp(data.kp,         'ק.פ.')         + '</td>'
-        + '<td>' + inp(data.itemName,   'שם פריט 1/2')  + '</td>'
-        + '<td>' + inp(data.weldNo,     'מס׳')          + '</td>'
-        + '<td>' + inp(data.heatNo,     'מס׳')          + '</td>'
-        + '<td>' + inp(data.pipeLength, 'אורך')         + '</td>'
-        + '<td>' + sel(data.fitUp)       + '</td>'
-        + '<td>' + sel(data.welderStamp) + '</td>'
-        + '<td>' + sel(data.visualRoot)  + '</td>'
-        + '<td>' + sel(data.visualHot)   + '</td>'
-        + '<td>' + sel(data.visualFillCap) + '</td>'
+        + '<td>' + inp(data.drawingNo, 'מס׳ שרטוט') + '</td>'
+        + '<td>' + inp(data.jointNo, 'מפרק') + '</td>'
+        + '<td>' + typeSel(data.weldType) + '</td>'
+        + '<td>' + inp(data.formA, 'צד א') + '</td>'
+        + '<td>' + inp(data.formB, 'צד ב') + '</td>'
+        + '<td>' + inp(data.specA, 'תקן א') + '</td>'
+        + '<td>' + inp(data.specB, 'תקן ב') + '</td>'
+        + '<td>' + inp(data.heatA, 'התכה א') + '</td>'
+        + '<td>' + inp(data.heatB, 'התכה ב') + '</td>'
+        + '<td>' + inp(data.npsSch, 'קוטר/עובי') + '</td>'
+        + '<td>' + inp(data.electrodeRoot, 'שורש') + '</td>'
+        + '<td>' + inp(data.electrodeFillCap, 'מילוי/כיסוי') + '</td>'
+        + '<td>' + dateInp(data.fitUpDate) + '</td>'
+        + '<td>' + resSel(data.fitUpResult) + '</td>'
+        + '<td>' + dateInp(data.weldingDate) + '</td>'
+        + '<td>' + inp(data.welderStamp, 'חותמת') + '</td>'
+        + '<td>' + dateInp(data.visualDate) + '</td>'
+        + '<td>' + resSel(data.visualResult) + '</td>'
+        + '<td>' + inp(data.ndtType, 'סוג') + '</td>'
         + '<td>' + del + '</td>'
         + '</tr>';
 }
 
 export function renderWeldInspection(wi = {}) {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    set('wiCompany',          wi.company);
-    set('wiJob',              wi.job);
-    set('wiArea',             wi.area);
-    set('wiPlantLocation',    wi.plantLocation);
-    set('wiQcCode',           wi.qcCode);
-    set('wiProjectTitle',     wi.projectTitle);
-    set('wiReportNo',         wi.reportNo);
-    set('wiDate',             wi.date);
-    set('wiAlignmentSheetNo', wi.alignmentSheetNo);
-    set('wiThickness',        wi.thickness);
-    set('wiDiameter',         wi.diameter);
-    set('wiWpsNo',            wi.wpsNo);
-    set('wiMaterial',         wi.material);
-    set('wiWeldingProcess',   wi.weldingProcess);
-    set('wiRemarks',          wi.remarks);
-    set('wiReviewedByName',   wi.reviewedByName);
-    set('wiReviewedByDate',   wi.reviewedByDate);
-    set('wiApprovedByName',   wi.approvedByName);
-    set('wiApprovedByDate',   wi.approvedByDate);
+    set('wiProject',            wi.project);
+    set('wiInstallationLine',   wi.installationLine);
+    set('wiContractor',         wi.contractor);
+    set('wiRev',                wi.rev);
+    set('wiDocNo',              wi.docNo);
+    set('wiWps',                wi.wps);
+    set('wiWeldingProcess',     wi.weldingProcess);
+    set('wiAcceptanceCriteria', wi.acceptanceCriteria);
+    set('wiNote',               wi.note);
+    set('wiInspectedByName',    wi.inspectedByName);
+    set('wiInspectedByDate',    wi.inspectedByDate);
+    set('wiWitnessedByName',    wi.witnessedByName);
+    set('wiWitnessedByDate',    wi.witnessedByDate);
+    set('wiReviewByName',       wi.reviewByName);
+    set('wiReviewByDate',       wi.reviewByDate);
     const tbody = document.getElementById('wiRowsTbody');
     if (tbody) tbody.innerHTML = (wi.rows || []).map((row, i) => _weldRowHtml(row, i + 1)).join('');
 }
@@ -169,8 +182,8 @@ export function weldDelRow(btn) {
 }
 
 export function weldSelChange(sel) {
-    const bg = { AS: '#dcfce7', NR: '#fef9c3', NT: '#fee2e2' };
-    const fg = { AS: '#166534', NR: '#92400e', NT: '#991b1b' };
+    const bg = { ACC: '#dcfce7', REJ: '#fee2e2' };
+    const fg = { ACC: '#166534', REJ: '#991b1b' };
     sel.style.background = bg[sel.value] || '';
     sel.style.color      = fg[sel.value] || '';
     markUnsaved();
@@ -180,41 +193,47 @@ export function collectWeldInspection() {
     const get = id => document.getElementById(id)?.value || '';
     const rows = Array.from(document.getElementById('wiRowsTbody')?.rows || []).map(row => {
         const texts = row.querySelectorAll('input[type="text"]');
+        const dates = row.querySelectorAll('input[type="date"]');
         const sels  = row.querySelectorAll('select');
         return {
-            kp:           texts[0]?.value.trim() || '',
-            itemName:     texts[1]?.value.trim() || '',
-            weldNo:       texts[2]?.value.trim() || '',
-            heatNo:       texts[3]?.value.trim() || '',
-            pipeLength:   texts[4]?.value.trim() || '',
-            fitUp:        sels[0]?.value || '',
-            welderStamp:  sels[1]?.value || '',
-            visualRoot:   sels[2]?.value || '',
-            visualHot:    sels[3]?.value || '',
-            visualFillCap: sels[4]?.value || '',
+            drawingNo:        texts[0]?.value.trim() || '',
+            jointNo:          texts[1]?.value.trim() || '',
+            weldType:         sels[0]?.value || '',
+            formA:            texts[2]?.value.trim() || '',
+            formB:            texts[3]?.value.trim() || '',
+            specA:            texts[4]?.value.trim() || '',
+            specB:            texts[5]?.value.trim() || '',
+            heatA:            texts[6]?.value.trim() || '',
+            heatB:            texts[7]?.value.trim() || '',
+            npsSch:           texts[8]?.value.trim() || '',
+            electrodeRoot:    texts[9]?.value.trim() || '',
+            electrodeFillCap: texts[10]?.value.trim() || '',
+            fitUpDate:        dates[0]?.value || '',
+            fitUpResult:      sels[1]?.value || '',
+            weldingDate:      dates[1]?.value || '',
+            welderStamp:      texts[11]?.value.trim() || '',
+            visualDate:       dates[2]?.value || '',
+            visualResult:     sels[2]?.value || '',
+            ndtType:          texts[12]?.value.trim() || '',
         };
     });
     return {
-        company:          get('wiCompany'),
-        job:              get('wiJob'),
-        area:             get('wiArea'),
-        plantLocation:    get('wiPlantLocation'),
-        qcCode:           get('wiQcCode'),
-        projectTitle:     get('wiProjectTitle'),
-        reportNo:         get('wiReportNo'),
-        date:             get('wiDate'),
-        alignmentSheetNo: get('wiAlignmentSheetNo'),
-        thickness:        get('wiThickness'),
-        diameter:         get('wiDiameter'),
-        wpsNo:            get('wiWpsNo'),
-        material:         get('wiMaterial'),
-        weldingProcess:   get('wiWeldingProcess'),
+        project:            get('wiProject'),
+        installationLine:   get('wiInstallationLine'),
+        contractor:         get('wiContractor'),
+        rev:                get('wiRev'),
+        docNo:              get('wiDocNo'),
+        wps:                get('wiWps'),
+        weldingProcess:     get('wiWeldingProcess'),
+        acceptanceCriteria: get('wiAcceptanceCriteria'),
         rows,
-        remarks:          get('wiRemarks'),
-        reviewedByName:   get('wiReviewedByName'),
-        reviewedByDate:   get('wiReviewedByDate'),
-        approvedByName:   get('wiApprovedByName'),
-        approvedByDate:   get('wiApprovedByDate'),
+        note:               get('wiNote'),
+        inspectedByName:    get('wiInspectedByName'),
+        inspectedByDate:    get('wiInspectedByDate'),
+        witnessedByName:    get('wiWitnessedByName'),
+        witnessedByDate:    get('wiWitnessedByDate'),
+        reviewByName:       get('wiReviewByName'),
+        reviewByDate:       get('wiReviewByDate'),
     };
 }
 
@@ -646,7 +665,7 @@ export function openReport(id) {
     if (_el('cardFinalComments'))  _el('cardFinalComments').style.display    = (_isDL || _isWI) ? 'none' : '';
     if (_el('cardTechTitle'))      _el('cardTechTitle').textContent          = _isDL ? 'חתימת מנהל עבודה' : _isWI ? 'Prepared By' : 'פרטי הטכנאי';
     if (_el('lblTechSig'))         _el('lblTechSig').textContent             = _isDL ? 'חתימת מנהל עבודה' : _isWI ? 'חתימת Prepared By' : 'חתימת הטכנאי';
-    if (_el('cardCustomerSigTitle')) _el('cardCustomerSigTitle').textContent = _isDL ? 'חתימת מפקח' : _isWI ? 'Reviewed / Approved By' : 'חתימת לקוח';
+    if (_el('cardCustomerSigTitle')) _el('cardCustomerSigTitle').textContent = _isDL ? 'חתימת מפקח' : _isWI ? 'Review By' : 'חתימת לקוח';
     if (_isDL) renderDailyLog(r.dailyLog || {});
     if (_isWI) renderWeldInspection(r.weldInspection || {});
 
