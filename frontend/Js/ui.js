@@ -187,27 +187,28 @@ function _buildFolderCards(folderNames) {
     }).join('');
 }
 
-/** Hex pairs (light/base) per SERVICE_TYPES color key, for the ring
- *  chart's per-segment gradients. Kept separate from the hd-bar-*
- *  classes (still used by the home dashboard's straight bar) since
- *  gradients need actual color values, not CSS classes. */
-const _RING_HEX = {
-    blue:  ['#7db4ff', '#3b82f6'],
-    red:   ['#ff8a80', '#ef4444'],
-    amber: ['#ffc35c', '#f59e0b'],
-    slate: ['#94a3b8', '#64748b'],
-};
+/** Solid hex per SERVICE_TYPES color key, for the ring chart's flat
+ *  segment strokes (no gradient — see buildServiceTypeChart). */
+const _RING_HEX = { blue: '#3b82f6', red: '#ef4444', amber: '#f59e0b', slate: '#94a3b8' };
+/** Same colors as RGB triples, for the rgba() tints used in the
+ *  card's ambient glow/shadow and the chip backgrounds. */
+const _RING_RGB = { blue: '59,130,246', red: '239,68,68', amber: '245,158,11', slate: '100,116,139' };
 
-/** Service-type breakdown as a segmented ring chart. Used for a
- *  folder's full report history (all of it, no time window) and for
- *  the home dashboard's monthly breakdown — same chart, different
- *  report lists passed in, so the two can never drift apart. */
+/** Service-type breakdown as a segmented ring chart, mobile-app
+ *  styled (soft color-matched glow and card shadow, chip-grid legend
+ *  — no gradient on the data itself). Used for a folder's full report
+ *  history (all of it, no time window) and for the home dashboard's
+ *  monthly breakdown — same chart, different report lists passed in,
+ *  so the two can never drift apart. */
 export function buildServiceTypeChart(reports, centerLabel = 'סה"כ דוחות') {
     const typeCounts = countByServiceType(reports);
     const total = reports.length;
     const active = total > 0 ? SERVICE_TYPES.filter(t => typeCounts[t.val] > 0) : [];
 
-    const r = 70, sw = 16;
+    const dominant = active.slice().sort((a, b) => typeCounts[b.val] - typeCounts[a.val])[0];
+    const glowRgb  = _RING_RGB[dominant?.color || 'blue'];
+
+    const r = 72, sw = 15;
     const C = 2 * Math.PI * r;
     const gap = active.length > 1 ? 6 : 0;
 
@@ -217,43 +218,40 @@ export function buildServiceTypeChart(reports, centerLabel = 'סה"כ דוחות
         const visible = Math.max(0, full - gap);
         const offset  = -cumulative;
         cumulative += full;
-        const [light, base] = _RING_HEX[t.color];
-        return `<linearGradient id="ring-g-${t.val}" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="${light}"/><stop offset="1" stop-color="${base}"/>
-            </linearGradient>`
-            + `<circle cx="90" cy="90" r="${r}" fill="none" stroke="url(#ring-g-${t.val})"
+        return `<circle cx="88" cy="88" r="${r}" fill="none" stroke="${_RING_HEX[t.color]}"
                 stroke-width="${sw}" stroke-linecap="round"
                 stroke-dasharray="${visible.toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>`;
     }).join('');
 
+    const chips = SERVICE_TYPES.map(t => {
+        const rgb = _RING_RGB[t.color];
+        return `
+            <div class="ring-chip" style="background:rgba(${rgb},0.12)">
+                <div class="ring-chip-icon" style="background:rgba(${rgb},0.2)"><span class="ring-chip-dot" style="background:${_RING_HEX[t.color]}"></span></div>
+                <div class="ring-chip-text">
+                    <div class="ring-chip-num">${typeCounts[t.val]}</div>
+                    <div class="ring-chip-lbl">${t.label}</div>
+                </div>
+            </div>`;
+    }).join('');
+
     return `
-        <div class="ring-chart-wrap" style="margin-bottom:20px;">
+        <div class="ring-card" style="margin-bottom:20px; box-shadow: 0 20px 40px -18px rgba(${glowRgb},0.35), 0 6px 16px -6px rgba(0,0,0,0.4);">
             <div class="ring-chart-stage">
-                <svg width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="פילוח ${total} דוחות לפי סוג טיפול">
+                <div class="ring-glow" style="background: radial-gradient(circle, rgba(${glowRgb},0.22) 0%, rgba(${glowRgb},0) 70%);"></div>
+                <svg width="176" height="176" viewBox="0 0 176 176" role="img" aria-label="פילוח ${total} דוחות לפי סוג טיפול">
                     <title>פילוח דוחות לפי סוג טיפול</title>
-                    <defs>
-                        <filter id="ring-shadow" x="-40%" y="-40%" width="180%" height="180%">
-                            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.4"/>
-                        </filter>
-                    </defs>
-                    <g transform="rotate(-90 90 90)" filter="url(#ring-shadow)">
-                        <circle cx="90" cy="90" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${sw}"/>
+                    <g transform="rotate(-90 88 88)">
+                        <circle cx="88" cy="88" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${sw}"/>
                         ${segments}
                     </g>
                 </svg>
                 <div class="ring-center-stat">
                     <div class="ring-center-num">${total}</div>
-                    <div class="ring-center-lbl">${centerLabel}</div>
+                    <div class="ring-center-pill" style="background:rgba(${glowRgb},0.16); color:${_RING_HEX[dominant?.color || 'blue']};">${centerLabel}</div>
                 </div>
             </div>
-            <div class="hd-legend">
-                ${SERVICE_TYPES.map(t => `
-                    <div class="hd-legend-item">
-                        <span class="hd-legend-dot hd-bar-${t.color}"></span>
-                        <span class="hd-legend-label">${t.label}</span>
-                        <span class="hd-legend-count">${typeCounts[t.val]}</span>
-                    </div>`).join('')}
-            </div>
+            <div class="ring-chips">${chips}</div>
         </div>`;
 }
 
