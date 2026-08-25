@@ -1,4 +1,4 @@
-import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus } from './api.js';
+import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus, SERVICE_TYPES, countByServiceType } from './api.js';
 import { renumberTplTasks } from './components/taskComponent.js';
 import { buildLogBoard }     from './components/folderBoard.js';
 
@@ -185,6 +185,29 @@ function _buildFolderCards(folderNames) {
     }).join('');
 }
 
+/** Service-type breakdown bar + legend for a folder's reports (all of
+ *  them, no time window — unlike the home dashboard's month-scoped
+ *  version). Same visual language (hd-* classes) as HomeTab.js. */
+function _buildServiceTypeChart(reports) {
+    const typeCounts = countByServiceType(reports);
+    return `
+        <div class="hd-chart-wrap" style="margin-bottom:20px;">
+            <div class="hd-bar-track">
+                ${SERVICE_TYPES.filter(t => typeCounts[t.val] > 0).map(t =>
+                    `<div class="hd-bar-seg hd-bar-${t.color}" style="flex:${typeCounts[t.val]}"></div>`
+                ).join('')}
+            </div>
+            <div class="hd-legend">
+                ${SERVICE_TYPES.map(t => `
+                    <div class="hd-legend-item">
+                        <span class="hd-legend-dot hd-bar-${t.color}"></span>
+                        <span class="hd-legend-label">${t.label}</span>
+                        <span class="hd-legend-count">${typeCounts[t.val]}</span>
+                    </div>`).join('')}
+            </div>
+        </div>`;
+}
+
 let _dashVisibleCount = 30;
 
 export function showDashboard() {
@@ -296,7 +319,10 @@ export async function showFolderContent(folderName) {
                 <p>תיקייה זו ריקה. צור דוח חדש או הזז דוח קיים לכאן.</p>
             </div>`;
     } else {
-        if (reports.length) historyHtml += `<div class="dash-grid">${_buildReportCards(reports, true)}</div>`;
+        if (reports.length) {
+            historyHtml += _buildServiceTypeChart(reports);
+            historyHtml += `<div class="dash-grid">${_buildReportCards(reports, true)}</div>`;
+        }
         if (docs.length)    historyHtml += `
             <div class="dash-section-label" style="margin-top:${reports.length ? '28px' : '0'}">מסמכים</div>
             <div class="dash-grid">${_buildDocCards(docs)}</div>`;

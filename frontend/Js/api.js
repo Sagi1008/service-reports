@@ -163,6 +163,30 @@ export function computeReportStatus(report) {
     return 'pending';
 }
 
+/** The 4 service-type categories shown in breakdown charts (home
+ *  dashboard, folder history). Single source of truth for their
+ *  labels/colors so the two chart renderers can't drift apart. */
+export const SERVICE_TYPES = [
+    { val: 'routine', label: 'ביקור תקופתי', color: 'blue'  },
+    { val: 'fault',   label: 'תקלה',          color: 'red'   },
+    { val: 'extra',   label: 'טיפול נוסף',    color: 'amber' },
+    { val: 'other',   label: 'אחר',            color: 'slate' },
+];
+
+/** Tallies a list of reports by service type, defaulting anything
+ *  unrecognised (or missing) to 'other'. Returns { routine, fault,
+ *  extra, other } counts. */
+export function countByServiceType(reports) {
+    const knownVals = new Set(SERVICE_TYPES.map(t => t.val));
+    const counts = {};
+    SERVICE_TYPES.forEach(t => { counts[t.val] = 0; });
+    reports.forEach(r => {
+        const v = r.serviceType && knownVals.has(r.serviceType) ? r.serviceType : 'other';
+        counts[v]++;
+    });
+    return counts;
+}
+
 /* ================================================================
    FIRESTORE HELPERS
 ================================================================ */

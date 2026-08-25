@@ -1,4 +1,4 @@
-import { S, esc, fmtDate } from '../api.js';
+import { S, esc, fmtDate, SERVICE_TYPES, countByServiceType } from '../api.js';
 import { renderRecentLogsInto } from './ManagerPanel.js';
 
 const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com'];
@@ -25,19 +25,7 @@ export function renderHomeDashboard() {
     const monthReports = allReports.filter(r => (r.createdAt || '').startsWith(monthStr));
     const thisMonth    = monthReports.length;
 
-    const SERVICE_TYPES = [
-        { val: 'routine', label: 'ביקור תקופתי', color: 'blue'  },
-        { val: 'fault',   label: 'תקלה',          color: 'red'   },
-        { val: 'extra',   label: 'טיפול נוסף',    color: 'amber' },
-        { val: 'other',   label: 'אחר',            color: 'slate' },
-    ];
-    const knownVals  = new Set(SERVICE_TYPES.map(t => t.val));
-    const typeCounts = {};
-    SERVICE_TYPES.forEach(t => { typeCounts[t.val] = 0; });
-    monthReports.forEach(r => {
-        const v = r.serviceType && knownVals.has(r.serviceType) ? r.serviceType : 'other';
-        typeCounts[v]++;
-    });
+    const typeCounts = countByServiceType(monthReports);
 
     const latest = allReports
         .filter(r => r.title)
