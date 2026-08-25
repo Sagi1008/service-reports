@@ -198,14 +198,14 @@ const _RING_HEX = {
     slate: ['#94a3b8', '#64748b'],
 };
 
-/** Service-type breakdown as a segmented ring chart, for a folder's
- *  reports (all of them, no time window). Replaces the straight
- *  segmented bar previously used here — the home dashboard's monthly
- *  chart still uses the bar. */
-function _buildServiceTypeChart(reports) {
+/** Service-type breakdown as a segmented ring chart. Used for a
+ *  folder's full report history (all of it, no time window) and for
+ *  the home dashboard's monthly breakdown — same chart, different
+ *  report lists passed in, so the two can never drift apart. */
+export function buildServiceTypeChart(reports, centerLabel = 'סה"כ דוחות') {
     const typeCounts = countByServiceType(reports);
     const total = reports.length;
-    const active = SERVICE_TYPES.filter(t => typeCounts[t.val] > 0);
+    const active = total > 0 ? SERVICE_TYPES.filter(t => typeCounts[t.val] > 0) : [];
 
     const r = 70, sw = 16;
     const C = 2 * Math.PI * r;
@@ -243,7 +243,7 @@ function _buildServiceTypeChart(reports) {
                 </svg>
                 <div class="ring-center-stat">
                     <div class="ring-center-num">${total}</div>
-                    <div class="ring-center-lbl">סה"כ דוחות</div>
+                    <div class="ring-center-lbl">${centerLabel}</div>
                 </div>
             </div>
             <div class="hd-legend">
@@ -369,7 +369,7 @@ export async function showFolderContent(folderName) {
             </div>`;
     } else {
         if (reports.length) {
-            historyHtml += _buildServiceTypeChart(reports);
+            historyHtml += buildServiceTypeChart(reports);
             historyHtml += `<div class="dash-grid">${_buildReportCards(reports, true)}</div>`;
         }
         if (docs.length)    historyHtml += `

@@ -1,5 +1,6 @@
-import { S, esc, fmtDate, SERVICE_TYPES, countByServiceType } from '../api.js';
+import { S, esc, fmtDate } from '../api.js';
 import { renderRecentLogsInto } from './ManagerPanel.js';
+import { buildServiceTypeChart } from '../ui.js';
 
 const _MANAGER_EMAILS = ['sagi.tisson@oficiency.com'];
 
@@ -23,9 +24,6 @@ export function renderHomeDashboard() {
     const allReports   = Object.values(S.reports).filter(r => r.id);
     const monthStr     = new Date().toISOString().slice(0, 7);
     const monthReports = allReports.filter(r => (r.createdAt || '').startsWith(monthStr));
-    const thisMonth    = monthReports.length;
-
-    const typeCounts = countByServiceType(monthReports);
 
     const latest = allReports
         .filter(r => r.title)
@@ -42,28 +40,7 @@ export function renderHomeDashboard() {
                 <div class="hd-date">${nowDate}</div>
             </div>
 
-            <div class="hd-month-bar">
-                <span class="hd-month-label">דו״חות החודש</span>
-                <span class="hd-month-total">${thisMonth}</span>
-            </div>
-
-            <div class="hd-chart-wrap">
-                <div class="hd-bar-track">
-                    ${thisMonth > 0
-                        ? SERVICE_TYPES.filter(t => typeCounts[t.val] > 0).map(t =>
-                            `<div class="hd-bar-seg hd-bar-${t.color}" style="flex:${typeCounts[t.val]}"></div>`
-                          ).join('')
-                        : '<div class="hd-bar-empty"></div>'}
-                </div>
-                <div class="hd-legend">
-                    ${SERVICE_TYPES.map(t => `
-                        <div class="hd-legend-item">
-                            <span class="hd-legend-dot hd-bar-${t.color}"></span>
-                            <span class="hd-legend-label">${t.label}</span>
-                            <span class="hd-legend-count">${typeCounts[t.val]}</span>
-                        </div>`).join('')}
-                </div>
-            </div>
+            ${buildServiceTypeChart(monthReports, 'דו"חות החודש')}
 
             <div class="hd-section-label">המשך עבודה מהיר</div>
             ${latest ? `
