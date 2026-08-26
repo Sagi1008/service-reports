@@ -13,13 +13,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/variables.css?v=1.5.28">
-    <link rel="stylesheet" href="css/global.css?v=1.5.28">
-    <link rel="stylesheet" href="css/auth.css?v=1.5.28">
-    <link rel="stylesheet" href="css/layout.css?v=1.5.28">
-    <link rel="stylesheet" href="css/components.css?v=1.5.28">
-    <link rel="stylesheet" href="css/reports.css?v=1.5.28">
-    <link rel="stylesheet" href="css/dashboard.css?v=1.5.28">
+    <link rel="stylesheet" href="css/variables.css?v=1.5.30">
+    <link rel="stylesheet" href="css/global.css?v=1.5.30">
+    <link rel="stylesheet" href="css/auth.css?v=1.5.30">
+    <link rel="stylesheet" href="css/layout.css?v=1.5.30">
+    <link rel="stylesheet" href="css/components.css?v=1.5.30">
+    <link rel="stylesheet" href="css/reports.css?v=1.5.30">
+    <link rel="stylesheet" href="css/dashboard.css?v=1.5.30">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -165,7 +165,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.5.8</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.5.30</div>
     </div>
 </aside>
 
@@ -740,6 +740,22 @@ window._showLoginWhenSplashDone = false;
     </div>
 </div>
 
+<!-- Site Code (document numbering) -->
+<div class="overlay hidden" id="siteCodeModal">
+    <div class="modal modal-sm">
+        <h3>🔢 קוד אתר למספור דוחות</h3>
+        <p class="modal-sub">קוד קצר (למשל NES) שמזהה את האתר במספור האוטומטי של דוחות (OFIC-קוד-SER-מספר). השאר ריק כדי לבטל מספור אוטומטי לתיקייה זו.</p>
+        <div class="fg">
+            <label class="lbl">קוד אתר</label>
+            <input type="text" id="siteCodeInput" placeholder="לדוגמה: NES" />
+        </div>
+        <div class="modal-actions">
+            <button class="mbtn mbtn-confirm" onclick="confirmSiteCode()">שמור</button>
+            <button class="mbtn mbtn-cancel" onclick="hideModal('siteCodeModal')">ביטול</button>
+        </div>
+    </div>
+</div>
+
 <!-- Delete Folder -->
 <div class="overlay hidden" id="deleteFolderModal">
     <div class="modal modal-sm">
@@ -1029,7 +1045,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.5.28"></script>
-<script type="module" src="Js/app.js?v=1.5.28"></script>
+<script type="module" src="Js/api.js?v=1.5.30"></script>
+<script type="module" src="Js/app.js?v=1.5.30"></script>
 </body>
 </html>

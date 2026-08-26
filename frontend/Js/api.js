@@ -18,6 +18,9 @@ import {
     createUserWithEmailAndPassword, updateProfile,
     connectAuthEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+    getFunctions, httpsCallable, connectFunctionsEmulator
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 
 // Detect local dev — true when served by the Firebase Hosting emulator or any localhost server
 const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
@@ -59,6 +62,7 @@ try {
     db = getFirestore(app);
 }
 const storage = getStorage(app);
+const functions = getFunctions(app, 'us-central1');
 export const auth = initializeAuth(app, { persistence: browserSessionPersistence });
 export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
@@ -68,7 +72,8 @@ if (IS_LOCAL) {
     connectFirestoreEmulator(db, 'localhost', 8080);
     connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
     connectStorageEmulator(storage, 'localhost', 9199);
-    console.log('%c[FIREBASE] LOCAL EMULATORS active — Firestore :8080  Auth :9099  Storage :9199  UI → http://localhost:4000', 'color:#34d399;font-weight:bold');
+    connectFunctionsEmulator(functions, 'localhost', 5001);
+    console.log('%c[FIREBASE] LOCAL EMULATORS active — Firestore :8080  Auth :9099  Storage :9199  Functions :5001  UI → http://localhost:4000', 'color:#34d399;font-weight:bold');
 }
 
 /* ================================================================
@@ -93,6 +98,8 @@ export const S = {
     unsaved: false,
     pendingDeleteFolder: null,
     pendingRenameFolder: null,
+    pendingSiteCodeFolder: null,
+    siteCodes:   {},     // { folderName: code }, kept live per open folder by apiSubscribeSiteCode
     importParsed: null,   // { name, tasks }
 };
 
@@ -839,6 +846,65 @@ export function apiSubscribeTemplatePermission(email, cb) {
         (snap) => cb(snap.exists() && snap.data().canEditTemplates === true),
         (err) => { console.warn('[TEMPLATE PERM] subscribe failed:', err.message); cb(false); }
     );
+}
+
+/* ================================================================
+   DOCUMENT NUMBERING (site_codes → Cloud Function → OFIC-<code>-SER-<n>)
+================================================================ */
+const _assignReportNumberFn   = httpsCallable(functions, 'assignReportNumber');
+const _peekNextReportNumberFn = httpsCallable(functions, 'peekNextReportNumber');
+
+/** Read-only live estimate of the next document number for a folder —
+ *  reserves nothing, purely a preview for display before the report is
+ *  actually saved. Returns null (never throws) on any failure. */
+export async function apiPeekReportNumber(folderName) {
+    if (!folderName) return null;
+    try {
+        const { data } = await _peekNextReportNumberFn({ folderName });
+        return data?.number || null;
+    } catch (e) {
+        console.warn('[DOC NUMBER] peek failed:', e.message);
+        return null;
+    }
+}
+
+/** Reserves the next sequential document number for a report, scoped
+ *  to its folder's site code. Call this only on the report's first real
+ *  save (never on creation) — this actually consumes a number, unlike
+ *  apiPeekReportNumber. Returns null (never throws) if the folder
+ *  has no site code configured yet, or if the Cloud Function call itself
+ *  fails — callers must treat this as "leave the number field manual",
+ *  never as a reason to block saving. */
+export async function apiAssignReportNumber(report) {
+    try {
+        const { data } = await _assignReportNumberFn({
+            folderName:       report.folder,
+            customer:         report.customer,
+            site:             report.site,
+            visitDate:        report.visitDate,
+            title:            report.title,
+            serviceType:      report.serviceType,
+            periodicInterval: report.periodicInterval,
+        });
+        return data?.number || null;
+    } catch (e) {
+        console.warn('[DOC NUMBER] assignment failed, leaving manual:', e.message);
+        return null;
+    }
+}
+
+/** Subscribes to a folder's site code (e.g. "נשר מלט" → "NES"). Calls
+ *  cb(code|null) on every change. Returns an unsubscribe function. */
+export function apiSubscribeSiteCode(folderName, cb) {
+    return onSnapshot(doc(db, 'site_codes', folderName),
+        (snap) => cb(snap.exists() ? snap.data().code : null),
+        (err) => { console.warn('[SITE CODE] subscribe failed:', err.message); cb(null); }
+    );
+}
+
+/** Sets/changes a folder's site code. Admin-only write per firestore.rules. */
+export async function apiSetSiteCode(folderName, code) {
+    await setDoc(doc(db, 'site_codes', folderName), { code: code.trim().toUpperCase() }, { merge: true });
 }
 
 /** Removes a user from the public team directory (called on access revoke). */

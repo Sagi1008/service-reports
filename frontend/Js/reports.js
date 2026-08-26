@@ -1,4 +1,4 @@
-import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, canEditTemplates, apiSaveDraftFields, apiClearDraftFields } from './api.js';
+import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, canEditTemplates, apiSaveDraftFields, apiClearDraftFields, apiAssignReportNumber, apiPeekReportNumber, apiSetSiteCode } from './api.js';
 import {
     showModal, hideModal, toast,
     setReportMode, renderTasks, renderImages, renderReportAppendices,
@@ -400,6 +400,21 @@ export function nrSelectTpl(el, id) {
     el.classList.add('selected');
 }
 
+/** Saves a newly-created report to Firestore for the first time. The
+ *  report's document number is deliberately NOT assigned here — only a
+ *  live, non-binding preview is shown (see openReport) — so a report
+ *  that's created and discarded without ever being genuinely saved never
+ *  burns a real number. The real number is reserved on first real save,
+ *  see saveReport(). Never blocks report creation if the save fails. */
+async function _finalizeNewReport(id, failToastMsg) {
+    try {
+        const saved = await apiSaveReport(S.reports[id]);
+        S.reports[id]._backendId = saved.id;
+    } catch (e) {
+        toast(failToastMsg, 'error');
+    }
+}
+
 export async function nrConfirm() {
     if (!_NR.serviceType) { toast('אנא בחר סוג טיפול', 'error'); return; }
     const tpl    = _NR.tplId ? S.templates[_NR.tplId] : null;
@@ -451,12 +466,7 @@ export async function nrConfirm() {
     renderSidebar();
     toast('דוח חדש נוצר' + (tpl ? ` מתבנית "${tpl.name}"` : ''), 'success');
 
-    try {
-        const saved = await apiSaveReport(S.reports[id]);
-        S.reports[id]._backendId = saved.id;
-    } catch (e) {
-        toast('הדוח נוצר אך לא נשמר בשרת – נסה לשמור שוב', 'error');
-    }
+    await _finalizeNewReport(id, 'הדוח נוצר אך לא נשמר בשרת – נסה לשמור שוב');
 }
 
 /* ================================================================
@@ -609,6 +619,21 @@ export function clearDraft(id) {
 /* ================================================================
    REPORTS – CRUD
 ================================================================ */
+/** Shows a live, non-binding preview of the next document number as the
+ *  field's placeholder (grey hint text, not a real value) — only while the
+ *  report has no real number yet. Purely cosmetic; can go stale if someone
+ *  else's report gets saved first, which is fine since it's never read
+ *  back as the actual value (see saveReport()). */
+async function _refreshNumberPreview(id, r) {
+    const numEl = document.getElementById('fNumber');
+    if (!numEl) return;
+    if (r.number || !r.folder) { numEl.placeholder = 'אופציונלי'; return; }
+    numEl.placeholder = 'טוען הערכה...';
+    const preview = await apiPeekReportNumber(r.folder);
+    if (S.currentId !== id) return; // navigated away before this resolved
+    numEl.placeholder = preview ? `${preview} (משוער)` : 'אופציונלי';
+}
+
 export function openReport(id) {
     if (!confirmUnsaved()) return;
     closeMobileSidebar();
@@ -632,6 +657,7 @@ export function openReport(id) {
     document.getElementById('fSite').value          = r.site         || '';
     document.getElementById('fVisitDate').value     = r.visitDate    || '';
     document.getElementById('fNumber').value        = r.number       || '';
+    _refreshNumberPreview(id, r);
     document.getElementById('fStartTime').value     = r.startTime    || '';
     document.getElementById('fEndTime').value       = r.endTime      || '';
     document.getElementById('fTotalHours').value    = r.totalHours   || '';
@@ -701,7 +727,18 @@ export async function saveReport() {
         r.customer      = document.getElementById('fCustomer')?.value             ?? r.customer;
         r.site          = document.getElementById('fSite')?.value                 ?? r.site;
         r.visitDate     = document.getElementById('fVisitDate')?.value            ?? r.visitDate;
-        r.number        = document.getElementById('fNumber')?.value               ?? r.number;
+        const _typedNumber = document.getElementById('fNumber')?.value ?? '';
+        if (!_typedNumber && !r.number && r.folder) {
+            // First real save with no manual override — reserve a real number now
+            // (never at creation, so an abandoned/deleted report never burns one).
+            const assignedNumber = await apiAssignReportNumber(r);
+            if (assignedNumber) {
+                r.number = assignedNumber;
+                document.getElementById('fNumber').value = assignedNumber;
+            }
+        } else {
+            r.number = _typedNumber || r.number;
+        }
         r.startTime     = document.getElementById('fStartTime')?.value            ?? r.startTime    ?? '';
         r.endTime       = document.getElementById('fEndTime')?.value              ?? r.endTime      ?? '';
         r.totalHours    = document.getElementById('fTotalHours')?.value           ?? r.totalHours   ?? '';
@@ -935,12 +972,7 @@ export async function createReportFromTemplate(tplId, folderName = null) {
     renderSidebar();
     toast(`דוח נוצר מתבנית "${tpl.name}"`, 'success');
 
-    try {
-        const saved = await apiSaveReport(S.reports[id]);
-        S.reports[id]._backendId = saved.id;
-    } catch (e) {
-        toast('הדוח נוצר אך לא נשמר בשרת – נסה לשמור שוב', 'error');
-    }
+    await _finalizeNewReport(id, 'הדוח נוצר אך לא נשמר בשרת – נסה לשמור שוב');
 }
 
 export function showSaveAsTemplate() {
@@ -1068,6 +1100,27 @@ export function confirmRenameFolder() {
     renderSidebar();
     hideModal('renameFolderModal');
     toast(`תיקייה שונתה ל"${nw}"`, 'success');
+}
+
+export function siteCodePrompt(folderName) {
+    if (!isAdmin()) { toast('רק מנהל מערכת יכול לקבוע קוד אתר', 'error'); return; }
+    S.pendingSiteCodeFolder = folderName;
+    document.getElementById('siteCodeInput').value = S.siteCodes?.[folderName] || '';
+    showModal('siteCodeModal');
+    setTimeout(() => document.getElementById('siteCodeInput').focus(), 80);
+}
+
+export async function confirmSiteCode() {
+    const folderName = S.pendingSiteCodeFolder;
+    const code = document.getElementById('siteCodeInput').value.trim();
+    if (!folderName) return;
+    try {
+        await apiSetSiteCode(folderName, code);
+        hideModal('siteCodeModal');
+        toast(code ? `קוד אתר נקבע: ${code.toUpperCase()}` : 'מספור אוטומטי בוטל לתיקייה זו', 'success');
+    } catch (e) {
+        toast('שמירת קוד האתר נכשלה', 'error');
+    }
 }
 
 export function deleteFolderPrompt(name) {
@@ -1274,12 +1327,7 @@ export async function confirmImport() {
         renderSidebar();
         hideModal('importPreviewModal');
         toast(`דוח "${name}" יובא ✓`, 'success');
-        try {
-            const saved = await apiSaveReport(S.reports[id]);
-            S.reports[id]._backendId = saved.id;
-        } catch (e) {
-            toast('הדוח יובא אך לא נשמר בשרת – נסה לשמור שוב', 'error');
-        }
+        await _finalizeNewReport(id, 'הדוח יובא אך לא נשמר בשרת – נסה לשמור שוב');
     }
     S.importParsed = null;
 }

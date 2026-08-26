@@ -108,6 +108,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── Site → document-numbering code (e.g. folder "נשר מלט" → "NES") ──
+    // Feeds the automatic report-number assignment (Cloud Function,
+    // Admin SDK — bypasses these rules for its own writes). Admin-only
+    // to edit since a wrong code misassigns document numbers.
+    match /site_codes/{folderName} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // ── Auto-saved report drafts ─────────────────────────────────────
     // Same sensitivity as the report itself (already broadly readable
     // above), so no extra ownership check is added here.

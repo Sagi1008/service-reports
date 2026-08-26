@@ -26,6 +26,7 @@ import {
     createReportFromTemplate, showSaveAsTemplate, confirmSaveAsTemplate,
     createFolder, showMoveFolderModal, moveToFolder,
     renameFolderPrompt, confirmRenameFolder,
+    siteCodePrompt, confirmSiteCode,
     deleteFolderPrompt, confirmDeleteFolder,
     importFile, confirmImport, onDocumentFilePicked, confirmDocumentUpload,
     exportJSON, downloadPDF, showShareModal, shareTo,
@@ -91,6 +92,8 @@ window.showMoveFolderModal    = showMoveFolderModal;
 window.moveToFolder           = moveToFolder;
 window.renameFolderPrompt     = renameFolderPrompt;
 window.confirmRenameFolder    = confirmRenameFolder;
+window.siteCodePrompt         = siteCodePrompt;
+window.confirmSiteCode        = confirmSiteCode;
 window.deleteFolderPrompt     = deleteFolderPrompt;
 window.confirmDeleteFolder    = confirmDeleteFolder;
 window.toggleFolder           = toggleFolder;

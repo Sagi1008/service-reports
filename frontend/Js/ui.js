@@ -1,4 +1,4 @@
-import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus, SERVICE_TYPES, countByServiceType } from './api.js';
+import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus, SERVICE_TYPES, countByServiceType, apiSubscribeSiteCode, apiSetSiteCode } from './api.js';
 import { renumberTplTasks } from './components/taskComponent.js';
 import { buildLogBoard }     from './components/folderBoard.js';
 
@@ -256,6 +256,7 @@ export function buildServiceTypeChart(reports, centerLabel = 'סה"כ דוחות
 }
 
 let _dashVisibleCount = 30;
+let _siteCodeUnsub = null;
 
 export function showDashboard() {
     _dashVisibleCount = 30;
@@ -412,6 +413,8 @@ export async function showFolderContent(folderName) {
     _showContentView();
     const container = document.getElementById('dashboardView');
 
+    if (_siteCodeUnsub) { _siteCodeUnsub(); _siteCodeUnsub = null; }
+
     container.innerHTML = `
         <div class="site-topbar">
             <button class="site-back-btn" onclick="showDashboard()">
@@ -527,6 +530,7 @@ export async function showFolderContent(folderName) {
                 חזור לתיקיות
             </button>
             <h2 class="site-title">${esc(folderName)}</h2>
+            <span class="site-code-badge hidden" id="siteCodeBadge"></span>
             ${totalReports ? `<span class="dash-count">${totalReports}</span>` : ''}
             ${isAdmin() ? `
             <div class="folder-menu-wrap">
@@ -559,6 +563,20 @@ export async function showFolderContent(folderName) {
         <div class="site-panel hidden" data-panel="templates">${templatesHtml}</div>
         <div class="site-panel hidden" data-panel="procedures">${proceduresHtml}</div>
         <div class="site-panel hidden" data-panel="logboard">${logBoardHtml}</div>`;
+
+    _siteCodeUnsub = apiSubscribeSiteCode(folderName, (code) => {
+        S.siteCodes[folderName] = code;
+        const badge = document.getElementById('siteCodeBadge');
+        if (!badge) return;
+        const admin = isAdmin();
+        if (!code && !admin) { badge.classList.add('hidden'); return; }
+        badge.classList.remove('hidden');
+        badge.textContent = code ? `קוד אתר: ${code}` : 'הגדר קוד אתר למספור אוטומטי';
+        if (admin) {
+            badge.classList.add('site-code-badge-editable');
+            badge.onclick = () => window.siteCodePrompt(folderName);
+        }
+    });
 }
 
 /* ================================================================

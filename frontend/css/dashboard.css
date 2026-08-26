@@ -297,6 +297,27 @@
     margin: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.site-code-badge {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 108px;
+    font-size: 11.5px; font-weight: 700;
+    color: #7d95b0;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09);
+    padding: 5px 10px;
+    border-radius: 7px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'Heebo', sans-serif;
+}
+.site-code-badge-editable {
+    cursor: pointer;
+    color: #60a5fa;
+    transition: background .15s;
+}
+.site-code-badge-editable:hover { background: rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.3); }
 
 .site-tabs {
     display: flex;
