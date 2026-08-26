@@ -1,4 +1,4 @@
-import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus, SERVICE_TYPES, countByServiceType, apiSubscribeSiteCode, apiSetSiteCode } from './api.js';
+import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus, SERVICE_TYPES, countByServiceType, apiSubscribeSiteCode, apiSetSiteCode, REPORT_TYPE_LABELS } from './api.js';
 import { renumberTplTasks } from './components/taskComponent.js';
 import { buildLogBoard }     from './components/folderBoard.js';
 
@@ -84,6 +84,11 @@ export function setTodayDates() {
 /* ================================================================
    REPORT MODE
 ================================================================ */
+/** Ring-chart color per report type — daily_log/weld_inspection aren't part
+ *  of the 4-way SERVICE_TYPES breakdown (they fall into the ring chart's
+ *  "other" bucket there), but still get a real badge color on cards. */
+const _TYPE_COLOR = { routine: 'blue', fault: 'red', extra: 'amber', other: 'slate', daily_log: 'slate', weld_inspection: 'slate' };
+
 function _buildReportCards(reports, showActions = false) {
     const statusLabel = { pending: 'ממתין', in_progress: 'בתהליך', completed: 'הושלם' };
     const statusClass = { pending: 'dash-status-pending', in_progress: 'dash-status-progress', completed: 'dash-status-done' };
@@ -93,6 +98,8 @@ function _buildReportCards(reports, showActions = false) {
         const done   = tasks.filter(t => t.status && t.status !== 'pending').length;
         const safeId    = esc(r.id);
         const safeTitle = esc(r.title || 'ללא שם');
+        const typeColor = _RING_HEX[_TYPE_COLOR[r.serviceType] || 'slate'];
+        const typeLabel = REPORT_TYPE_LABELS[r.serviceType] || '';
         const actionsHtml = showActions ? `
             <div class="card-actions-desktop" style="display:flex;gap:6px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);">
                 <button class="dash-card-action-btn" onclick="event.stopPropagation();showAssetMoveModal('report','${safeId}','move')">העבר</button>
@@ -110,6 +117,7 @@ function _buildReportCards(reports, showActions = false) {
         return `
             <div class="dash-card" onclick="openReport('${safeId}')">
                 <button class="dash-card-delete card-actions-desktop" title="מחק דוח" onclick="event.stopPropagation();if(confirm('למחוק את הדוח &quot;${safeTitle}&quot;?')){deleteReportById('${safeId}')}">✕</button>
+                ${typeLabel ? `<div class="dash-card-type" style="color:${typeColor};background:${typeColor}1f;">${typeLabel}</div>` : ''}
                 <div class="dash-card-title">${esc(r.title || 'ללא שם')}</div>
                 ${r.customer  ? `<div class="dash-card-meta">👤 ${esc(r.customer)}</div>`      : ''}
                 ${r.site      ? `<div class="dash-card-meta">📍 ${esc(r.site)}</div>`          : ''}
@@ -120,6 +128,38 @@ function _buildReportCards(reports, showActions = false) {
                 </div>
                 ${actionsHtml}
             </div>`;
+    }).join('');
+}
+
+/** Groups report cards by visit-month, current month first, then each
+ *  earlier month in descending order — a month-name header sits above its
+ *  group. Reports missing a visitDate fall into a trailing "ללא תאריך"
+ *  group. Used everywhere report cards are listed (home dashboard, folder
+ *  history) so the two can't drift apart. */
+function _buildReportCardsByMonth(reports, showActions = false) {
+    const NO_DATE = '0000-00'; // sorts after any real "YYYY-MM" key
+    const groups = new Map();
+    reports.forEach(r => {
+        const key = r.visitDate ? r.visitDate.slice(0, 7) : NO_DATE;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
+    });
+
+    const currentKey = today().slice(0, 7);
+    const keys = Array.from(groups.keys()).sort((a, b) => b.localeCompare(a));
+    if (keys.includes(currentKey)) {
+        keys.splice(keys.indexOf(currentKey), 1);
+        keys.unshift(currentKey);
+    }
+
+    return keys.map(key => {
+        const monthLabel = key === NO_DATE
+            ? 'ללא תאריך'
+            : new Date(key + '-01').toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+        const groupReports = groups.get(key).slice().sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''));
+        return `
+            <div class="dash-month-label">${monthLabel}</div>
+            <div class="dash-grid">${_buildReportCards(groupReports, showActions)}</div>`;
     }).join('');
 }
 
@@ -296,7 +336,7 @@ function _renderDashboard() {
                 <h2 class="dash-title">דוחות אחרונים</h2>
                 <span class="dash-count">${remaining > 0 ? `מוצגים ${shown} מתוך ${reports.length}` : `${reports.length} סה"כ`}</span>
             </div>
-            <div class="dash-grid">${_buildReportCards(reports.slice(0, _dashVisibleCount))}</div>
+            ${_buildReportCardsByMonth(reports.slice(0, _dashVisibleCount))}
             ${remaining > 0 ? `
             <div style="display:flex;justify-content:center;margin-top:16px;">
                 <button class="dash-new-folder-btn" onclick="loadMoreDashboardReports()">טען עוד (${remaining} נותרו)</button>
@@ -446,7 +486,7 @@ export async function showFolderContent(folderName) {
     } else {
         if (reports.length) {
             historyHtml += buildServiceTypeChart(reports);
-            historyHtml += `<div class="dash-grid">${_buildReportCards(reports, true)}</div>`;
+            historyHtml += _buildReportCardsByMonth(reports, true);
         }
         if (docs.length)    historyHtml += `
             <div class="dash-section-label" style="margin-top:${reports.length ? '28px' : '0'}">מסמכים</div>

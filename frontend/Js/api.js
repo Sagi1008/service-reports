@@ -178,6 +178,15 @@ export const SERVICE_TYPES = [
     { val: 'other',   label: 'אחר',            color: 'slate' },
 ];
 
+/** Display label for every report type, including the two (daily_log,
+ *  weld_inspection) that aren't part of the 4-way SERVICE_TYPES chart
+ *  breakdown. Single source of truth — used for the "מה סוג הטיפול?"
+ *  picker, the open report's badge, and report-card badges. */
+export const REPORT_TYPE_LABELS = {
+    routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר',
+    daily_log: 'יומן עבודה יומי', weld_inspection: 'בדיקת ריתוך ויזואלי',
+};
+
 /** Tallies a list of reports by service type, defaulting anything
  *  unrecognised (or missing) to 'other'. Returns { routine, fault,
  *  extra, other } counts. */

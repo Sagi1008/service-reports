@@ -1,4 +1,4 @@
-import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, canEditTemplates, apiSaveDraftFields, apiClearDraftFields, apiAssignReportNumber, apiPeekReportNumber, apiSetSiteCode } from './api.js';
+import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, canEditTemplates, apiSaveDraftFields, apiClearDraftFields, apiAssignReportNumber, apiPeekReportNumber, apiSetSiteCode, REPORT_TYPE_LABELS } from './api.js';
 import {
     showModal, hideModal, toast,
     setReportMode, renderTasks, renderImages, renderReportAppendices,
@@ -74,7 +74,7 @@ function _applyReadOnlyMode(r) {
    NEW REPORT WIZARD (3-step: service type → location → template)
 ================================================================ */
 const _NR = { serviceType: '', folder: null, tplId: null, title: '' };
-const _NR_LABELS = { routine: 'ביקור תקופתי', fault: 'תקלה', extra: 'טיפול נוסף', other: 'אחר', daily_log: 'יומן עבודה יומי', weld_inspection: 'בדיקת ריתוך ויזואלי' };
+const _NR_LABELS = REPORT_TYPE_LABELS;
 
 /* ================================================================
    DAILY WORK LOG — helpers
