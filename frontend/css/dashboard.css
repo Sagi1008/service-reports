@@ -326,6 +326,40 @@
 .site-tab.active { color: var(--brand); border-bottom-color: var(--brand); }
 .site-tab:hover:not(.active) { color: var(--ink-2); }
 .site-panel.hidden { display: none; }
+.site-tab-badge {
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 10px; font-weight: 800;
+    background: rgba(239,68,68,0.18); color: #f87171;
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 20px; padding: 1px 7px;
+    min-width: 18px; text-align: center;
+}
+
+/* Open faults panel (folder view) */
+.fault-list { display: flex; flex-direction: column; gap: 10px; }
+.fault-card {
+    background: var(--red-bg);
+    border: 1.5px solid var(--red-border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color .15s;
+}
+.fault-card:hover { border-color: var(--red); }
+.fault-card.under-review { background: var(--amber-bg); border-color: var(--amber-border); }
+.fault-card.under-review:hover { border-color: var(--amber); }
+.fault-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.fault-status-badge {
+    font-size: 10.5px; font-weight: 800;
+    padding: 2px 9px; border-radius: 20px;
+    background: rgba(248,113,113,0.18); color: var(--red);
+}
+.fault-status-badge.under-review { background: rgba(245,158,11,0.18); color: var(--amber); }
+.fault-date { font-size: 11px; color: var(--muted); }
+.fault-desc { font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.fault-comment { font-size: 12px; color: var(--ink-3); margin-bottom: 6px; white-space: pre-wrap; }
+.fault-meta { font-size: 11px; color: var(--muted); }
 
 /* Template list */
 .site-tpl-list { display: flex; flex-direction: column; gap: 10px; }

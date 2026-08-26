@@ -336,6 +336,77 @@ export function switchFolderTab(tab) {
     });
 }
 
+/** Derives this folder's currently-open faults from its own report
+ *  history — no separate data model, no AI, just the existing task
+ *  statuses. A recurring check item (matched by its description text
+ *  — reports created from the same template reuse the exact same
+ *  wording) is "open" as long as its MOST RECENT dated occurrence in
+ *  this folder is still not_performed/out_of_range/under_review; the
+ *  moment a later report shows that same description marked OK, it
+ *  drops off this list automatically. Only scans r.tasks — daily_log
+ *  and weld_inspection reports use their own separate structures and
+ *  aren't covered here. */
+function _computeOpenFaults(reports) {
+    const bySignature = new Map();
+    reports.forEach(r => {
+        const reportDate = r.visitDate || r.createdAt || '';
+        (r.tasks || []).forEach(t => {
+            if (t.type === 'section' || !t.description) return;
+            const sig = t.description.trim().replace(/\s+/g, ' ');
+            if (!sig) return;
+            const existing = bySignature.get(sig);
+            if (!existing || reportDate > existing.reportDate) {
+                bySignature.set(sig, {
+                    description: sig,
+                    status:      t.status || 'pending',
+                    comments:    t.comments || '',
+                    reportId:    r.id,
+                    reportTitle: r.title || 'דוח',
+                    reportDate,
+                    techName:    r.tech?.name || '',
+                });
+            }
+        });
+    });
+
+    const OPEN_STATUSES = new Set(['not_performed', 'out_of_range', 'under_review']);
+    return Array.from(bySignature.values())
+        .filter(f => OPEN_STATUSES.has(f.status))
+        .sort((a, b) => {
+            const rank = s => s === 'under_review' ? 1 : 0;
+            if (rank(a.status) !== rank(b.status)) return rank(a.status) - rank(b.status);
+            return (b.reportDate || '').localeCompare(a.reportDate || '');
+        });
+}
+
+const _FAULT_STATUS_META = {
+    not_performed: { label: 'לא תקין', cls: 'not-performed' },
+    out_of_range:  { label: 'חריג',    cls: 'not-performed' },
+    under_review:  { label: 'בבדיקה',  cls: 'under-review'  },
+};
+
+function _buildFaultsPanel(openFaults) {
+    if (!openFaults.length) {
+        return `<div class="dash-empty"><div class="dash-empty-icon">✅</div><p>אין תקלות פתוחות בתיקייה זו כרגע.</p></div>`;
+    }
+    return `<div class="fault-list">` + openFaults.map(f => {
+        const meta = _FAULT_STATUS_META[f.status] || { label: f.status, cls: '' };
+        return `
+            <div class="fault-card ${meta.cls}" onclick="openReport('${esc(f.reportId)}')">
+                <div class="fault-card-top">
+                    <span class="fault-status-badge ${meta.cls}">${meta.label}</span>
+                    <span class="fault-date">${fmtDate(f.reportDate)}</span>
+                </div>
+                <div class="fault-desc">${esc(f.description)}</div>
+                ${f.comments ? `<div class="fault-comment">${esc(f.comments)}</div>` : ''}
+                <div class="fault-meta">
+                    <span>${esc(f.reportTitle)}</span>
+                    ${f.techName ? `<span> · ${esc(f.techName)}</span>` : ''}
+                </div>
+            </div>`;
+    }).join('') + `</div>`;
+}
+
 export async function showFolderContent(folderName) {
     S.currentFolder = folderName;
     _showContentView();
@@ -356,6 +427,10 @@ export async function showFolderContent(folderName) {
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     const docs    = S.attachments[folderName] || [];
     const totalReports = reports.length + docs.length;
+
+    // ── Faults tab content ─────────────────────────────────────────
+    const openFaults = _computeOpenFaults(reports);
+    const faultsHtml = _buildFaultsPanel(openFaults);
 
     // ── History tab content ───────────────────────────────────────
     let historyHtml = '';
@@ -473,12 +548,14 @@ export async function showFolderContent(folderName) {
 
         <div class="site-tabs" role="tablist">
             <button class="site-tab active" role="tab" data-tab="history"    onclick="switchFolderTab('history')">היסטוריית דו״חות</button>
+            <button class="site-tab"        role="tab" data-tab="faults"     onclick="switchFolderTab('faults')">תקלות${openFaults.length ? `<span class="site-tab-badge">${openFaults.length}</span>` : ''}</button>
             <button class="site-tab"        role="tab" data-tab="templates"  onclick="switchFolderTab('templates')">תבניות</button>
             <button class="site-tab"        role="tab" data-tab="procedures" onclick="switchFolderTab('procedures')">נהלים</button>
             <button class="site-tab"        role="tab" data-tab="logboard"   onclick="switchFolderTab('logboard')">לוח טיפולים</button>
         </div>
 
         <div class="site-panel" data-panel="history">${historyHtml}</div>
+        <div class="site-panel hidden" data-panel="faults">${faultsHtml}</div>
         <div class="site-panel hidden" data-panel="templates">${templatesHtml}</div>
         <div class="site-panel hidden" data-panel="procedures">${proceduresHtml}</div>
         <div class="site-panel hidden" data-panel="logboard">${logBoardHtml}</div>`;
