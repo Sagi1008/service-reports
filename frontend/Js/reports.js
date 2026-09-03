@@ -1,4 +1,4 @@
-import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, canEditTemplates, apiSaveDraftFields, apiClearDraftFields, apiAssignReportNumber, apiPeekReportNumber, apiSetSiteCode, REPORT_TYPE_LABELS } from './api.js';
+import { S, persist, uid, today, esc, fmtDate, apiSaveReport, apiUploadDocument, apiDeleteReport, fetchStorageDataUrl, isAdmin, canEditReport, canEditTemplates, apiSaveDraftFields, apiClearDraftFields, apiAssignReportNumber, apiPeekReportNumber, apiSetSiteCode, REPORT_TYPE_LABELS, apiSetTemplate, apiDeleteTemplate, apiDeleteFolderKey, folderParent, folderChildren, folderDisplayName, topLevelFolderNames, makeFolderKey, FOLDER_SEP } from './api.js';
 import {
     showModal, hideModal, toast,
     setReportMode, renderTasks, renderImages, renderReportAppendices,
@@ -877,7 +877,7 @@ export function showTemplateEditor(id, folderName = null) {
     setTimeout(() => document.getElementById('tplName').focus(), 80);
 }
 
-export function saveTplEditor() {
+export async function saveTplEditor() {
     if (!canEditTemplates()) { toast('אין הרשאה לערוך תבניות', 'error'); return; }
     const name = document.getElementById('tplName').value.trim();
     if (!name) { toast('אנא הכנס שם לתבנית', 'error'); return; }
@@ -915,7 +915,12 @@ export function saveTplEditor() {
     };
     if (!existingId) S.templates[id].createdAt = S.templates[id].updatedAt;
 
-    persist();
+    try {
+        await apiSetTemplate(id, S.templates[id]);
+    } catch (e) {
+        toast('שמירת התבנית נכשלה בשרת', 'error');
+        return;
+    }
     renderSidebar();
     document.getElementById('tplEditorPage').style.display = 'none';
     if (S.currentFolder) showFolderContent(S.currentFolder);
@@ -923,11 +928,11 @@ export function saveTplEditor() {
     toast(`תבנית "${name}" נשמרה ✓`, 'success');
 }
 
-export function deleteTemplatePrompt(id) {
+export async function deleteTemplatePrompt(id) {
     if (!canEditTemplates()) { toast('אין הרשאה למחוק תבניות', 'error'); return; }
     if (confirm(`למחוק את התבנית "${S.templates[id]?.name}"?`)) {
         delete S.templates[id];
-        persist();
+        try { await apiDeleteTemplate(id); } catch (e) { toast('מחיקת התבנית נכשלה בשרת', 'error'); }
         renderSidebar();
         toast('התבנית נמחקה', 'error');
         if (S.currentFolder) showFolderContent(S.currentFolder);
@@ -996,7 +1001,10 @@ export async function confirmSaveAsTemplate() {
     const id = uid();
     S.templates[id] = {
         id, name,
-        folder:       r.folder       || null,
+        // עדיפות לתיקייה שבה המשתמש נמצא כרגע (אם פתח את הדוח מתוכה) —
+        // fallback לתיקייה של הדוח עצמו רק כשאין הקשר תיקייה פעיל (למשל
+        // כשפותחים דוח מתוך "כל הדוחות" הכללי).
+        folder:       S.currentFolder || r.folder || null,
         serviceType:  r.serviceType  || '',
         permComments: r.permComments || '',
         tasks: (r.tasks || []).map(t => {
@@ -1015,11 +1023,12 @@ export async function confirmSaveAsTemplate() {
     };
 
     try {
-        persist();
+        await apiSetTemplate(id, S.templates[id]);
         renderSidebar();
         hideModal('saveTplModal');
         toast('הדוח נשמר כתבנית בהצלחה!', 'success');
     } catch (e) {
+        delete S.templates[id];
         console.error('[SAVE_TPL]', e);
         toast('שגיאה בשמירת התבנית – נסה שוב', 'error');
     }
@@ -1039,14 +1048,41 @@ function _markDeleted(frontendId) {
 /* ================================================================
    FOLDERS
 ================================================================ */
+/** The new folder's parent is inferred purely from context — wherever you
+ *  currently are — never a manual picker. Viewing a top-level folder (its
+ *  children grid, or its normal report tabs if it has none yet) → the new
+ *  folder nests inside it. Viewing the top-level dashboard → a new
+ *  top-level folder. A sub-folder's own view never offers this at all
+ *  (only one level of nesting is supported), enforced by simply not
+ *  rendering the button there — see showFolderContent(). */
+export function showCreateFolderModal() {
+    if (!isAdmin()) { toast('רק מנהל מערכת יכול ליצור תיקיות', 'error'); return; }
+    const parent = S.currentFolder && !folderParent(S.currentFolder) ? S.currentFolder : null;
+    S.pendingFolderParent = parent;
+    const ctx = document.getElementById('createFolderContext');
+    if (parent) {
+        ctx.textContent = `נוצרת בתוך "${folderDisplayName(parent)}"`;
+        ctx.classList.remove('hidden');
+    } else {
+        ctx.classList.add('hidden');
+    }
+    document.getElementById('newFolderName').value = '';
+    showModal('createFolderModal');
+    setTimeout(() => document.getElementById('newFolderName').focus(), 80);
+}
+
 export function createFolder() {
     if (!isAdmin()) { toast('רק מנהל מערכת יכול ליצור תיקיות', 'error'); return; }
-    const name = document.getElementById('newFolderName').value.trim();
+    const name   = document.getElementById('newFolderName').value.trim();
+    const parent = S.pendingFolderParent;
     if (!name) { toast('אנא הכנס שם', 'error'); return; }
-    if (S.folders[name]) { toast('תיקייה עם שם זה קיימת', 'error'); return; }
-    S.folders[name] = [];
+    if (name.includes(FOLDER_SEP)) { toast(`שם תיקייה לא יכול להכיל "${FOLDER_SEP}"`, 'error'); return; }
+    const key = makeFolderKey(parent, name);
+    if (S.folders[key]) { toast('תיקייה עם שם זה קיימת', 'error'); return; }
+    S.folders[key] = [];
     persist();
     renderSidebar();
+    if (S.currentFolder) showFolderContent(S.currentFolder);
     hideModal('createFolderModal');
     document.getElementById('newFolderName').value = '';
     toast(`תיקייה "${name}" נוצרה`, 'success');
@@ -1082,24 +1118,33 @@ export function moveToFolder(name) {
 
 export function renameFolderPrompt(name) {
     if (!isAdmin()) { toast('רק מנהל מערכת יכול לשנות שם תיקייה', 'error'); return; }
+    if (folderChildren(name).length) { toast('לא ניתן לשנות שם לתיקייה עם תתי-תיקיות', 'error'); return; }
     S.pendingRenameFolder = name;
-    document.getElementById('renameFolderInput').value = name;
+    document.getElementById('renameFolderInput').value = folderDisplayName(name);
     showModal('renameFolderModal');
     setTimeout(() => document.getElementById('renameFolderInput').focus(), 80);
 }
 
-export function confirmRenameFolder() {
+export async function confirmRenameFolder() {
     const old = S.pendingRenameFolder;
-    const nw  = document.getElementById('renameFolderInput').value.trim();
-    if (!nw || nw === old) { hideModal('renameFolderModal'); return; }
+    const newDisplayName = document.getElementById('renameFolderInput').value.trim();
+    if (!newDisplayName || newDisplayName.includes(FOLDER_SEP)) {
+        if (newDisplayName.includes(FOLDER_SEP)) toast(`שם תיקייה לא יכול להכיל "${FOLDER_SEP}"`, 'error');
+        hideModal('renameFolderModal');
+        return;
+    }
+    const parent = folderParent(old);
+    const nw = makeFolderKey(parent, newDisplayName);
+    if (nw === old) { hideModal('renameFolderModal'); return; }
     if (S.folders[nw]) { toast('שם קיים', 'error'); return; }
     S.folders[nw] = S.folders[old] || [];
     delete S.folders[old];
     S.folders[nw].forEach(id => { if (S.reports[id]) S.reports[id].folder = nw; });
     persist();
+    try { await apiDeleteFolderKey(old); } catch (e) { toast('הסרת שם התיקייה הישן נכשלה בשרת', 'error'); }
     renderSidebar();
     hideModal('renameFolderModal');
-    toast(`תיקייה שונתה ל"${nw}"`, 'success');
+    toast(`תיקייה שונתה ל"${newDisplayName}"`, 'success');
 }
 
 export function siteCodePrompt(folderName) {
@@ -1128,24 +1173,30 @@ export function deleteFolderPrompt(name) {
     const hasReports   = (S.folders[name] || []).some(id => S.reports[id]);
     const hasTemplates = Object.values(S.templates).some(t => t.folder === name);
     const hasProcs     = ((S.procedures || {})[name] || []).length > 0;
+    const hasChildren  = folderChildren(name).length > 0;
 
+    if (hasChildren) {
+        toast('לא ניתן למחוק תיקייה שמכילה תתי-תיקיות. יש למחוק אותן קודם.', 'error');
+        return;
+    }
     if (hasReports || hasTemplates || hasProcs) {
         toast('לא ניתן למחוק תיקייה שמכילה דוחות, תבניות או נהלים. יש לרוקן אותה תחילה.', 'error');
         return;
     }
 
     S.pendingDeleteFolder = name;
-    document.getElementById('deleteFolderMsg').textContent = `האם אתה בטוח שברצונך למחוק את התיקייה "${name}"?`;
+    document.getElementById('deleteFolderMsg').textContent = `האם אתה בטוח שברצונך למחוק את התיקייה "${folderDisplayName(name)}"?`;
     showModal('deleteFolderModal');
 }
 
-export function confirmDeleteFolder() {
+export async function confirmDeleteFolder() {
     const name = S.pendingDeleteFolder;
     if (!name) return;
     (S.folders[name] || []).forEach(id => { if (S.reports[id]) S.reports[id].folder = null; });
     delete S.folders[name];
     S.pendingDeleteFolder = null;
     persist();
+    try { await apiDeleteFolderKey(name); } catch (e) { toast('מחיקת התיקייה נכשלה בשרת', 'error'); }
     renderSidebar();
     showDashboard();
     hideModal('deleteFolderModal');

@@ -6,7 +6,7 @@ import {
     initializeFirestore, persistentLocalCache, getFirestore,
     connectFirestoreEmulator,
     doc, setDoc, getDoc, collection, addDoc, getDocs, deleteDoc,
-    onSnapshot, serverTimestamp, query, where, updateDoc, orderBy, limit
+    onSnapshot, serverTimestamp, query, where, updateDoc, orderBy, limit, deleteField, FieldPath
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
     getStorage, ref, uploadBytes, getDownloadURL, deleteObject, getBlob,
@@ -98,6 +98,7 @@ export const S = {
     unsaved: false,
     pendingDeleteFolder: null,
     pendingRenameFolder: null,
+    pendingFolderParent: null,
     pendingSiteCodeFolder: null,
     siteCodes:   {},     // { folderName: code }, kept live per open folder by apiSubscribeSiteCode
     importParsed: null,   // { name, tasks }
@@ -200,6 +201,42 @@ export function countByServiceType(reports) {
     });
     return counts;
 }
+
+/* ================================================================
+   FOLDER HIERARCHY (one level deep)
+   A folder's key IS its full path — top-level folders are a plain name
+   ("נשר מלט"), a sub-folder is "<parent><SEP><name>" ("בדיקות עובי
+   דופן|נשר מלט"). Reports/templates/site_codes/counters all key off this
+   string exactly as before — nesting is purely a display/navigation
+   concept layered on top of the existing flat S.folders map, not a new
+   data model. The separator is "|", NOT "/": folder keys are also used
+   as Firestore document ids (site_codes/{folderName}) and in dot-path
+   field targeting (folders.<name> for a targeted delete) — both treat
+   "/" as a structural delimiter and reject it outright ("Invalid field
+   path", real bug hit during development — see docs/SRS.md history);
+   "|" has no special meaning to Firestore either way. Only one level is
+   supported (a sub-folder can't itself have children) — enough for
+   "report type → site" grouping without an arbitrary tree's complexity. */
+const FOLDER_SEP = '|';
+export function folderParent(name) {
+    const i = name.lastIndexOf(FOLDER_SEP);
+    return i === -1 ? null : name.slice(0, i);
+}
+export function folderDisplayName(name) {
+    const i = name.lastIndexOf(FOLDER_SEP);
+    return i === -1 ? name : name.slice(i + 1);
+}
+export function folderChildren(name) {
+    const prefix = name + FOLDER_SEP;
+    return Object.keys(S.folders).filter(k => k.startsWith(prefix));
+}
+export function topLevelFolderNames() {
+    return Object.keys(S.folders).filter(k => !k.includes(FOLDER_SEP));
+}
+export function makeFolderKey(parent, displayName) {
+    return parent ? `${parent}${FOLDER_SEP}${displayName}` : displayName;
+}
+export { FOLDER_SEP };
 
 /* ================================================================
    FIRESTORE HELPERS
@@ -332,17 +369,62 @@ function _blobToDataUrl(blob) {
    APP STATE – folders / templates / taskCounter
    נשמר ישירות בתוך מסמך יחיד ב-Firestore תחת האוסף "config"
 ================================================================ */
+/** Syncs folders/taskCounter to Firestore (merge write — see below).
+ *  `templates` is deliberately NOT part of this sync: every template
+ *  add/update/delete goes through its own targeted field-path write
+ *  (apiSetTemplate / apiDeleteTemplate) instead, so no client — no matter
+ *  how stale its in-memory copy of S.templates is — can ever touch another
+ *  template just by calling persist() for something unrelated (creating a
+ *  report, renaming a folder, ...). `templates` is still cached to
+ *  localStorage below for offline fallback; that's a purely local, single-
+ *  device write with no race exposure.
+ *
+ *  For folders/taskCounter, this is still a MERGE write, not a wholesale
+ *  overwrite: a stale/incomplete local snapshot (e.g. a browser tab that's
+ *  been open a while, or two tabs saving around the same time) must never
+ *  be able to silently erase folders that exist on the server but aren't
+ *  in this client's copy of S. A plain setDoc() without merge did exactly
+ *  that to `templates` (root cause of real template data loss on
+ *  2026-08-26 — see docs/SRS.md history) before templates moved off this
+ *  path entirely. A real folder deletion/rename still needs the explicit
+ *  apiDeleteFolderKey() — merge can only add/update keys, never remove one
+ *  by omission. */
 export function persist() {
     const state = { folders: S.folders, templates: S.templates, taskCounter: S.taskCounter };
     // 1. שמירה מקומית מיידית לגיבוי אופליין
     localStorage.setItem('trs_v2', JSON.stringify(state));
-    // 2. שמירה בענן (Fire-and-forget)
-    apiSaveAppState(state).catch(e => console.warn('[PERSIST] backend sync failed:', e));
+    // 2. שמירה בענן (Fire-and-forget) — בלי templates, ראו הערה למעלה
+    apiSaveAppState({ folders: S.folders, taskCounter: S.taskCounter }).catch(e => console.warn('[PERSIST] backend sync failed:', e));
 }
 
 async function apiSaveAppState(state) {
-    // שומר את מצב האפליקציה בתוך מסמך קבוע שנקרא appstate
-    await setDoc(doc(db, "config", "appstate"), _sanitize(state));
+    await setDoc(doc(db, "config", "appstate"), _sanitize(state), { merge: true });
+}
+
+/** Adds or updates exactly one template, by id, without ever touching any
+ *  other template — the only way template data should ever be written.
+ *  Uses a FieldPath (segment array), not a "templates.<id>" dot-string —
+ *  a dot-string breaks (throws, or silently targets the wrong nested
+ *  field) the moment the id itself contains ".", and Firestore rejects
+ *  "/" outright in a dot-string field path, which real folder/template
+ *  identifiers can legitimately contain (real bug hit during
+ *  development — see docs/SRS.md history). FieldPath takes each segment
+ *  literally, so no character in `id` needs escaping. */
+export async function apiSetTemplate(id, data) {
+    await updateDoc(doc(db, 'config', 'appstate'), new FieldPath('templates', id), _sanitize(data));
+}
+
+/** Explicitly removes one template by id — a targeted field-path delete,
+ *  since nothing else may ever touch the templates map wholesale. */
+export async function apiDeleteTemplate(id) {
+    await updateDoc(doc(db, 'config', 'appstate'), new FieldPath('templates', id), deleteField());
+}
+
+/** Explicitly removes one folder key (by name) from Firestore — same
+ *  reasoning as apiDeleteTemplate(). Used for both real folder deletion
+ *  and the "remove old key" half of a folder rename. */
+export async function apiDeleteFolderKey(name) {
+    await updateDoc(doc(db, 'config', 'appstate'), new FieldPath('folders', name), deleteField());
 }
 
 /* ================================================================
@@ -612,11 +694,21 @@ export async function apiDeleteReport(frontendUid) {
     await deleteDoc(docRef);
 }
 
+/** Normalizes an email used as an identity key (registration lookup,
+ *  team_directory doc id, RBAC checks) — lowercase + trim. Emails are
+ *  stored/compared inconsistently case-sensitive otherwise (Firestore has
+ *  no case-insensitive query), which can silently lock out a genuinely-
+ *  approved user if they registered/typed their email with different
+ *  casing than they later sign in with (real incident, 2026-08). */
+function _normEmail(email) {
+    return (email || '').trim().toLowerCase();
+}
+
 /** שמירת בקשת הרשמה חדשה — ממתינה לאישור מנהל */
 export async function apiSubmitRegistrationRequest(name, email, password) {
     await addDoc(collection(db, 'registration_requests'), _sanitize({
         name,
-        email,
+        email: _normEmail(email),
         password,
         status:      'pending',
         requestedAt: serverTimestamp(),
@@ -658,6 +750,7 @@ async function _deleteAuthAccount(email, password) {
 
 /** אישור בקשה: יצירת משתמש Firebase Auth דרך אפליקציה משנית, ועדכון סטטוס */
 export async function apiApproveRegistration(docId, name, email, password) {
+    email = _normEmail(email);
     const secondaryApp = initializeApp(firebaseConfig, `reg-${Date.now()}`);
     try {
         const secondaryAuth = initializeAuth(secondaryApp, { persistence: inMemoryPersistence });
@@ -839,19 +932,20 @@ export async function apiGetApprovedUsers() {
  *  rather than overwrites, so it never clobbers an already-granted
  *  canEditTemplates flag on a re-sync/backfill. */
 async function apiSyncTeamDirectory(name, email) {
+    email = _normEmail(email);
     await setDoc(doc(db, 'team_directory', email), _sanitize({ name, email, updatedAt: new Date().toISOString() }), { merge: true });
 }
 
 /** Grants or revokes template-editing permission for a technician.
  *  Admin-only write per firestore.rules. */
 export async function apiSetTemplatePermission(email, allowed) {
-    await setDoc(doc(db, 'team_directory', email), { canEditTemplates: !!allowed }, { merge: true });
+    await setDoc(doc(db, 'team_directory', _normEmail(email)), { canEditTemplates: !!allowed }, { merge: true });
 }
 
 /** Subscribes to the current user's own template-editing permission.
  *  Calls cb(true|false) on every change. Returns an unsubscribe function. */
 export function apiSubscribeTemplatePermission(email, cb) {
-    return onSnapshot(doc(db, 'team_directory', email),
+    return onSnapshot(doc(db, 'team_directory', _normEmail(email)),
         (snap) => cb(snap.exists() && snap.data().canEditTemplates === true),
         (err) => { console.warn('[TEMPLATE PERM] subscribe failed:', err.message); cb(false); }
     );
@@ -916,11 +1010,6 @@ export async function apiSetSiteCode(folderName, code) {
     await setDoc(doc(db, 'site_codes', folderName), { code: code.trim().toUpperCase() }, { merge: true });
 }
 
-/** Removes a user from the public team directory (called on access revoke). */
-async function apiRemoveFromTeamDirectory(email) {
-    try { await deleteDoc(doc(db, 'team_directory', email)); } catch (e) { console.warn('[TEAM DIR] remove failed:', e.message); }
-}
-
 /** One-time (idempotent) backfill: mirrors every already-approved
  *  registration_requests record into team_directory. Safe to call on every
  *  admin login — setDoc overwrites are cheap and harmless if already synced.
@@ -940,18 +1029,41 @@ export async function apiBackfillTeamDirectory() {
     await Promise.all(jobs);
 }
 
-/** ביטול גישה: מחיקת חשבון Firebase Auth ועדכון סטטוס ב-Firestore */
-export async function apiRevokeUserAccess(docId) {
-    const reqSnap = await getDoc(doc(db, 'registration_requests', docId));
-    if (reqSnap.exists()) {
-        const { email, password } = reqSnap.data();
-        if (email && password) await _deleteAuthAccount(email, password);
-        if (email) await apiRemoveFromTeamDirectory(email);
+/** ביטול גישה: מחיקת חשבון Firebase Auth ועדכון סטטוס ב-Firestore.
+ *  Takes an EMAIL, not a registration_requests doc id — the Manager Panel
+ *  only has team_directory rows to revoke from, and team_directory's doc
+ *  id IS the email (see apiSyncTeamDirectory), not a registration_requests
+ *  id (those are auto-generated by addDoc). A previous version of this
+ *  function assumed its argument WAS a registration_requests doc id and
+ *  so could never find a match — every revoke silently failed (real
+ *  incident, 2026-09 — see docs/SRS.md history). Queries for BOTH the
+ *  exact casing given (matches older, pre-normalization records) and the
+ *  normalized casing (matches everything written after the email-
+ *  normalization fix), and revokes every match — repeated signup attempts
+ *  can leave more than one registration_requests record for the same
+ *  person. */
+export async function apiRevokeUserAccess(email) {
+    const exact  = email;
+    const normed = _normEmail(email);
+    const candidates = exact === normed ? [exact] : [exact, normed];
+
+    const q = query(collection(db, 'registration_requests'), where('email', 'in', candidates));
+    const snap = await getDocs(q);
+    const teamDirEmails = new Set([exact]); // the exact row the admin clicked, always removed
+    for (const d of snap.docs) {
+        const { password, email: recordEmail } = d.data();
+        if (password) await _deleteAuthAccount(recordEmail, password);
+        if (recordEmail) teamDirEmails.add(recordEmail); // clears every casing variant that had a real record too
+        await updateDoc(doc(db, 'registration_requests', d.id), {
+            status:    'rejected',
+            revokedAt: serverTimestamp(),
+        });
     }
-    await updateDoc(doc(db, 'registration_requests', docId), {
-        status:    'rejected',
-        revokedAt: serverTimestamp(),
-    });
+    await Promise.all([...teamDirEmails].map(e => deleteDoc(doc(db, 'team_directory', e))));
+
+    if (snap.empty) {
+        console.warn('[REVOKE] no registration_requests record found for', email, '— team_directory entry still removed');
+    }
 }
 
 export function apiSubscribeRecentHandoverLogs(n, cb) {
@@ -987,11 +1099,17 @@ export async function apiLogEquipmentHandover(logData) {
    API – AUTH GUARD (approval check + real-time session revocation)
 ================================================================ */
 
-/** Returns true if the given email has an approved registration record. */
+/** Returns true if the given email has an approved registration record.
+ *  Case-insensitive: registration_requests.email is always stored
+ *  lowercased (see apiSubmitRegistrationRequest), and Firebase Auth's own
+ *  email casing can vary by how the account was first created — a
+ *  mismatch here silently signs a genuinely-approved user right back out
+ *  (real incident, 2026-08 — see docs/SRS.md history), so this must
+ *  normalize its own input the same way. */
 export async function apiCheckUserApproval(email) {
     const q = query(
         collection(db, 'registration_requests'),
-        where('email', '==', email),
+        where('email', '==', _normEmail(email)),
         where('status', '==', 'approved')
     );
     const snap = await getDocs(q);
@@ -1004,7 +1122,7 @@ export async function apiCheckUserApproval(email) {
 export function apiSubscribeUserStatus(email, cb) {
     const q = query(
         collection(db, 'registration_requests'),
-        where('email', '==', email)
+        where('email', '==', _normEmail(email))
     );
     return onSnapshot(q,
         (snap) => {

@@ -24,7 +24,7 @@ import {
     openReport, saveReport, clearReport, deleteReportPrompt, confirmDelete, deleteReportById,
     showTemplateEditor, saveTplEditor, deleteTemplatePrompt,
     createReportFromTemplate, showSaveAsTemplate, confirmSaveAsTemplate,
-    createFolder, showMoveFolderModal, moveToFolder,
+    showCreateFolderModal, createFolder, showMoveFolderModal, moveToFolder,
     renameFolderPrompt, confirmRenameFolder,
     siteCodePrompt, confirmSiteCode,
     deleteFolderPrompt, confirmDeleteFolder,
@@ -87,6 +87,7 @@ window.renumberTplTasks       = renumberTplTasks;
 window.handleTplAppendixFile  = handleTplAppendixFile;
 
 // Folder actions
+window.showCreateFolderModal  = showCreateFolderModal;
 window.createFolder           = createFolder;
 window.showMoveFolderModal    = showMoveFolderModal;
 window.moveToFolder           = moveToFolder;

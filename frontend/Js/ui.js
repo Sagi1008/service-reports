@@ -1,4 +1,4 @@
-import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus, SERVICE_TYPES, countByServiceType, apiSubscribeSiteCode, apiSetSiteCode, REPORT_TYPE_LABELS } from './api.js';
+import { S, esc, escHtml, fmtDate, fileIcon, formatFileSize, today, apiDeleteAttachment, apiUploadProcedure, apiDeleteProcedure, isAdmin, canEditReport, canEditTemplates, computeReportStatus, SERVICE_TYPES, countByServiceType, apiSubscribeSiteCode, apiSetSiteCode, REPORT_TYPE_LABELS, folderParent, folderChildren, folderDisplayName, topLevelFolderNames } from './api.js';
 import { renumberTplTasks } from './components/taskComponent.js';
 import { buildLogBoard }     from './components/folderBoard.js';
 
@@ -215,14 +215,16 @@ function _showContentView() {
 
 function _buildFolderCards(folderNames) {
     return folderNames.map(name => {
-        const count = (S.folders[name] || []).filter(id => S.reports[id]).length;
+        const count    = (S.folders[name] || []).filter(id => S.reports[id]).length;
+        const children = folderChildren(name);
+        const countLabel = children.length ? `${children.length} תתי-תיקיות` : `${count} דוחות`;
         return `
             <div class="dash-folder-card" onclick="showFolderContent('${esc(name)}')">
                 <div class="dash-folder-icon">
                     <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
                 </div>
-                <div class="dash-folder-name">${esc(name)}</div>
-                <div class="dash-folder-count">${count} דוחות</div>
+                <div class="dash-folder-name">${esc(folderDisplayName(name))}</div>
+                <div class="dash-folder-count">${countLabel}</div>
             </div>`;
     }).join('');
 }
@@ -312,14 +314,14 @@ function _renderDashboard() {
     S.currentFolder = null;
     _showContentView();
     const container  = document.getElementById('dashboardView');
-    const folderNames = Object.keys(S.folders);
+    const folderNames = topLevelFolderNames();
     const reports = Object.values(S.reports)
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 
     let html = `
         <div class="dash-header">
             <h2 class="dash-title">תיקיות</h2>
-            ${isAdmin() ? `<button class="dash-new-folder-btn" onclick="showModal('createFolderModal')">תיקייה חדשה</button>` : ''}
+            ${isAdmin() ? `<button class="dash-new-folder-btn" onclick="showCreateFolderModal()">תיקייה חדשה</button>` : ''}
         </div>`;
 
     if (folderNames.length) {
@@ -455,13 +457,36 @@ export async function showFolderContent(folderName) {
 
     if (_siteCodeUnsub) { _siteCodeUnsub(); _siteCodeUnsub = null; }
 
+    const parent = folderParent(folderName);
+    const backOnclick = parent ? `showFolderContent('${esc(parent)}')` : 'showDashboard()';
+
+    // A folder that has sub-folders is a pure grouping container — show its
+    // children as a grid (like the top-level dashboard) instead of the
+    // normal report/template/procedure tabs, which only apply to a leaf
+    // folder. One level of nesting only — a child can't have children of
+    // its own, so this never recurses further.
+    const children = folderChildren(folderName);
+    if (children.length) {
+        container.innerHTML = `
+            <div class="site-topbar">
+                <button class="site-back-btn" onclick="${backOnclick}">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><polyline points="9 18 15 12 9 6"/></svg>
+                    ${parent ? 'חזור' : 'חזור לתיקיות'}
+                </button>
+                <h2 class="site-title">${esc(folderDisplayName(folderName))}</h2>
+                ${isAdmin() ? `<button class="dash-new-folder-btn" onclick="showCreateFolderModal()">תיקייה חדשה</button>` : ''}
+            </div>
+            <div class="dash-folder-grid">${_buildFolderCards(children)}</div>`;
+        return;
+    }
+
     container.innerHTML = `
         <div class="site-topbar">
-            <button class="site-back-btn" onclick="showDashboard()">
+            <button class="site-back-btn" onclick="${backOnclick}">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><polyline points="9 18 15 12 9 6"/></svg>
-                חזור לתיקיות
+                ${parent ? 'חזור' : 'חזור לתיקיות'}
             </button>
-            <h2 class="site-title">${esc(folderName)}</h2>
+            <h2 class="site-title">${esc(folderDisplayName(folderName))}</h2>
         </div>
         <div class="dash-empty" style="opacity:.5"><p>טוען...</p></div>`;
 
@@ -565,13 +590,14 @@ export async function showFolderContent(folderName) {
     const safeFN = esc(folderName);
     container.innerHTML = `
         <div class="site-topbar">
-            <button class="site-back-btn" onclick="showDashboard()">
+            <button class="site-back-btn" onclick="${backOnclick}">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><polyline points="9 18 15 12 9 6"/></svg>
-                חזור לתיקיות
+                ${parent ? 'חזור' : 'חזור לתיקיות'}
             </button>
-            <h2 class="site-title">${esc(folderName)}</h2>
+            <h2 class="site-title">${esc(folderDisplayName(folderName))}</h2>
             <span class="site-code-badge hidden" id="siteCodeBadge"></span>
             ${totalReports ? `<span class="dash-count">${totalReports}</span>` : ''}
+            ${isAdmin() && !parent ? `<button class="dash-new-folder-btn" onclick="showCreateFolderModal()">תיקייה חדשה</button>` : ''}
             ${isAdmin() ? `
             <div class="folder-menu-wrap">
                 <button class="folder-menu-btn" onclick="toggleFolderMenu(event)" title="אפשרויות">
@@ -947,7 +973,7 @@ export function renderSidebar() {
     const c = document.getElementById('sidebarBody');
     c.innerHTML = '';
 
-    Object.keys(S.folders).forEach(name => {
+    topLevelFolderNames().forEach(name => {
         const ids = (S.folders[name] || []).filter(id => S.reports[id]);
         const fi  = document.createElement('div');
         fi.className = 'folder-item';

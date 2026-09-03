@@ -13,13 +13,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/variables.css?v=1.5.31">
-    <link rel="stylesheet" href="css/global.css?v=1.5.31">
-    <link rel="stylesheet" href="css/auth.css?v=1.5.31">
-    <link rel="stylesheet" href="css/layout.css?v=1.5.31">
-    <link rel="stylesheet" href="css/components.css?v=1.5.31">
-    <link rel="stylesheet" href="css/reports.css?v=1.5.31">
-    <link rel="stylesheet" href="css/dashboard.css?v=1.5.31">
+    <link rel="stylesheet" href="css/variables.css?v=1.5.38">
+    <link rel="stylesheet" href="css/global.css?v=1.5.38">
+    <link rel="stylesheet" href="css/auth.css?v=1.5.38">
+    <link rel="stylesheet" href="css/layout.css?v=1.5.38">
+    <link rel="stylesheet" href="css/components.css?v=1.5.38">
+    <link rel="stylesheet" href="css/reports.css?v=1.5.38">
+    <link rel="stylesheet" href="css/dashboard.css?v=1.5.38">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
@@ -150,7 +150,7 @@ window._showLoginWhenSplashDone = false;
         <div class="sidebar-logo" id="sidebarLogo" onclick="navToDashboard()">
             <img src="assets/Oficiency%20white%20LOGO.png" alt="Oficiency Logo" class="company-logo">
         </div>
-        <button class="btn-new-folder" onclick="showModal('createFolderModal')">תיקייה חדשה</button>
+        <button class="btn-new-folder" onclick="showCreateFolderModal()">תיקייה חדשה</button>
     </div>
 
     <div class="sidebar-body" id="sidebarBody"></div>
@@ -165,7 +165,7 @@ window._showLoginWhenSplashDone = false;
             <span class="user-strip-email" id="userEmail"></span>
             <button class="btn-signout" onclick="doSignOut()">יציאה</button>
         </div>
-        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.5.31</div>
+        <div style="text-align:center;font-size:9px;color:rgba(125,149,176,0.4);letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">v1.5.38</div>
     </div>
 </aside>
 
@@ -713,7 +713,8 @@ window._showLoginWhenSplashDone = false;
 <!-- Create Folder -->
 <div class="overlay hidden" id="createFolderModal">
     <div class="modal modal-sm">
-        <h3>📁 תיקייה חדשה</h3>
+        <h3 id="createFolderTitle">📁 תיקייה חדשה</h3>
+        <p class="modal-sub hidden" id="createFolderContext"></p>
         <div class="fg">
             <label class="lbl">שם התיקייה</label>
             <input type="text" id="newFolderName" placeholder='למשל: ברום ים המלח' />
@@ -1045,7 +1046,7 @@ window._showLoginWhenSplashDone = false;
     </button>
 </nav>
 
-<script type="module" src="Js/api.js?v=1.5.31"></script>
-<script type="module" src="Js/app.js?v=1.5.31"></script>
+<script type="module" src="Js/api.js?v=1.5.38"></script>
+<script type="module" src="Js/app.js?v=1.5.38"></script>
 </body>
 </html>
